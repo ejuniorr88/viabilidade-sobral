@@ -24,17 +24,18 @@ def carregar_dados_kmz():
 
 root = carregar_dados_kmz()
 
-# --- BANCO DE DADOS FIEL ÀS TABELAS OFICIAIS (LC 90/2023) ---
+# --- BANCO DE DADOS (SOBRAL LC 90/91) ---
 atividades_db = {
-    "Casa Individual (Unifamiliar)": {"v": 1, "s": 150, "desc": "1 vaga por unidade"},
-    "Prédio (Multifamiliar)": {"v": 65, "s": 150, "desc": "1 vaga por unidade"},
-    "Comércio e Serviços (Inc. Farmácias)": {"v": 50, "s": 100, "desc": "1 vaga a cada 50m²"},
-    "Farmácia": {"v": 50, "s": 100, "desc": "1 vaga a cada 50m²"},
-    "Depósito / Galpão": {"v": 150, "s": 200, "desc": "1 vaga a cada 150m²"},
-    "Supermercado": {"v": 25, "s": 80, "desc": "1 vaga a cada 25m²"},
-    "Clínica Médica / Consultório": {"v": 40, "s": 50, "desc": "1 vaga a cada 40m²"},
-    "Hospital / Maternidade": {"v": 80, "s": 30, "desc": "1 vaga a cada 80m²"},
-    "Faculdade / Superior": {"v": 35, "s": 40, "desc": "1 vaga a cada 35m²"},
+    "Casa Individual (Unifamiliar)": {"v": 1, "s": 150, "t": "Residencial"},
+    "Prédio (Multifamiliar)": {"v": 65, "s": 150, "t": "Residencial"},
+    "Comércio e Serviços (Inc. Farmácias)": {"v": 50, "s": 100, "t": "Comercial"},
+    "Farmácia": {"v": 50, "s": 100, "t": "Comercial"},
+    "Depósito / Galpão": {"v": 150, "s": 200, "t": "Comercial"},
+    "Supermercado": {"v": 25, "s": 80, "t": "Comercial"},
+    "Clínica Médica / Consultório": {"v": 40, "s": 50, "t": "Saúde"},
+    "Hospital / Maternidade": {"v": 80, "s": 30, "t": "Saúde"},
+    "Faculdade / Superior": {"v": 35, "s": 40, "t": "Educação"},
+    "Escola (Fund./Médio)": {"v": 100, "s": 40, "t": "Educação"}
 }
 
 # --- SIDEBAR: DADOS E BUSCA ---
@@ -44,17 +45,13 @@ with st.sidebar:
     
     if cat == "Residencial": sub = ["Casa Individual (Unifamiliar)", "Prédio (Multifamiliar)"]
     elif cat == "Comercial": sub = ["Comércio e Serviços (Inc. Farmácias)", "Farmácia", "Depósito / Galpão", "Supermercado"]
-    else: sub = ["Clínica Médica / Consultório", "Hospital / Maternidade", "Faculdade / Superior"]
+    else: sub = ["Clínica Médica / Consultório", "Hospital / Maternidade", "Faculdade / Superior", "Escola (Fund./Médio)"]
     
-    escolha_quadro = st.selectbox("Tipo de uso:", sub)
+    escolha_quadro = st.selectbox("Tipo de uso (Menu):", sub)
 
     st.markdown("---")
-    st.header("🔍 2. Busca Rápida")
-    escolha_busca = st.selectbox(
-        "Ou digite a atividade:",
-        options=[""] + sorted(list(atividades_db.keys())),
-        index=0
-    )
+    st.header("🔍 2. Busca Direta")
+    escolha_busca = st.selectbox("Ou digite a atividade:", options=[""] + sorted(list(atividades_db.keys())))
 
     atv_final = escolha_busca if escolha_busca != "" else escolha_quadro
     dados_atv = atividades_db[atv_final]
@@ -83,19 +80,19 @@ if out and out.get("last_clicked"):
         st.session_state.clique = pos
         st.rerun()
 
-# --- BOTÃO DE PESQUISA ---
+# --- BOTÃO DE DISPARO ---
 st.markdown("---")
-btn_col1, btn_col2, btn_col3 = st.columns([1, 2, 1])
-with btn_col2:
-    botao_gerar = st.button("🚀 GERAR ESTUDO DE VIABILIDADE", use_container_width=True)
+col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+with col_btn2:
+    gerar_evt = st.button("🚀 GERAR ESTUDO DE VIABILIDADE", use_container_width=True)
 
-# --- PROCESSAMENTO DO RELATÓRIO ---
-if botao_gerar:
+# --- RELATÓRIO EVT ---
+if gerar_evt:
     if not st.session_state.clique:
-        st.error("📍 Por favor, primeiro clique no lote desejado no mapa.")
+        st.error("📍 Primeiro, selecione o lote clicando no mapa.")
     else:
         ponto = Point(st.session_state.clique[1], st.session_state.clique[0])
-        zona = "ZAP" 
+        zona = "Não Identificada"
         if root is not None:
             namespaces = {'kml': 'http://www.opengis.net/kml/2.2'}
             for pm in root.findall('.//kml:Placemark', namespaces):
@@ -107,21 +104,23 @@ if botao_gerar:
                         zona = pm.find('kml:name', namespaces).text
                         break
 
-        st.success(f"Relatório gerado com sucesso para a atividade: {atv_final}")
+        st.success(f"Análise concluída para {atv_final} na zona {zona}.")
         
-        st.subheader(f"📑 EVT: {atv_final.upper()}")
+        # EXIBIÇÃO EM QUADROS
         c1, c2 = st.columns(2)
         with c1:
             st.info("### 🏗️ 1. ÍNDICES")
             to_calc = (area_c / pavs) / area_t
             st.write(f"**Zona:** {zona}")
-            st.write(f"**Ocupação:** {to_calc*100:.1f}% (Máx: 70%)")
-            st.write(f"**Área Permeável (10%):** {area_t * 0.1:.2f}m²")
+            st.write(f"**Taxa de Ocupação:** {to_calc*100:.1f}% (Máx: 70%)")
+            st.write(f"**Permeabilidade Mínima (10%):** {area_t * 0.1:.2f}m²")
 
         with c2:
             st.info("### 📏 2. RECUOS")
             st.write("**Frontal:** 3,00 m")
-            st.write("**Laterais:** Isento (paredes cegas) / 1,50m (aberturas)")
+            st.write("**Laterais:** 1,50 m (com abertura)")
+            st.write("**Fundos:** 1,50 m (conforme Art. 107 da LC 90)")
+            st.caption("Nota: Paredes cegas podem ser isentas conforme a zona.")
 
         c3, c4 = st.columns(2)
         with c3:
@@ -132,8 +131,6 @@ if botao_gerar:
         with c4:
             st.info("### 🚗 4. VAGAS")
             vagas = math.ceil(area_c / dados_atv['v']) if dados_atv['v'] > 0 else 1
-            st.write(f"**Vagas Carro:** {vagas} vaga(s)")
-            st.write(f"**Regra:** {dados_atv['desc']}")
-else:
-    if st.session_state.clique:
-        st.info("✅ Lote selecionado. Clique no botão acima para gerar o relatório.")
+            st.write(f"**Vagas de Carro:** {vagas}")
+            bicis = max(5, math.ceil(vagas * 0.1))
+            st.write(f"**Bicicletas:** {bicis} vagas")
