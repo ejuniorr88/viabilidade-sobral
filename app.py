@@ -23,7 +23,7 @@ def carregar_dados_kmz():
 
 root = carregar_dados_kmz()
 
-# --- BANCO DE DADOS ATUALIZADO ---
+# --- BANCO DE DADOS TÉCNICO ---
 atividades_db = {
     "Casa Individual (Unifamiliar)": {"v": 1, "s": 150, "zs": ["ZAP", "ZAM", "ZPR", "ZCR", "ZPH"]},
     "Prédio de Apartamentos (Multifamiliar)": {"v": 65, "s": 150, "zs": ["ZAP", "ZAM", "ZCR"]},
@@ -57,10 +57,14 @@ with st.sidebar:
     dados_atv = atividades_db[atv_final]
     
     st.divider()
-    st.header("📐 3. Dimensões do Lote")
+    st.header("📐 3. Dimensões e Projeto")
     testada = st.number_input("Testada / Frente (m):", value=10.0)
     profundidade = st.number_input("Profundidade (m):", value=30.0)
     esquina = st.checkbox("Lote de Esquina")
+    
+    # Campo de área pretendida começando em 0.0
+    area_pretendida_input = st.number_input("Área Construída Pretendida (m²):", value=0.0, help="Deixe 0.0 para calcular o Potencial Máximo automaticamente.")
+    
     pavs_input = st.slider("Simulação de Pavimentos:", 1, 15, 1)
     area_terreno = testada * profundidade
 
@@ -97,7 +101,7 @@ with c2:
                             zona = pm.find('{http://www.opengis.net/kml/2.2}name').text
                             break
             
-            # Limites por Zona (Conforme LC 91)
+            # Índices de Sobral
             lims = {
                 "ZAP": {"to": 0.7, "ca": 1.0, "tp": 0.1, "gab": 12},
                 "ZAM": {"to": 0.6, "ca": 1.0, "tp": 0.15, "gab": 15},
@@ -105,18 +109,23 @@ with c2:
             }
             l = lims.get(zona, {"to": 0.6, "ca": 1.0, "tp": 0.15, "gab": 10})
             
-            a_max_t = area_terreno * l['to']
-            a_total_p = area_terreno * l['ca']
-            
-            # Recomendação de Pavimentos (Potencial Construtivo / Área máxima de projeção)
-            pavs_recomendados = math.floor(l['ca'] / l['to']) if l['to'] > 0 else 1
+            # LÓGICA DE CÁLCULO: Se for 0, usa o Potencial Máximo
+            potencial_maximo = area_terreno * l['ca']
+            if area_pretendida_input <= 0:
+                area_final = potencial_maximo
+                modo = "POTENCIAL MÁXIMO"
+            else:
+                area_final = area_pretendida_input
+                modo = "ÁREA PRETENDIDA"
 
             st.session_state.relatorio = {
-                "atv": atv_final, "zona": zona, "a_t": area_terreno, "a_max_t": a_max_t,
-                "a_total": a_total_p, "a_pav": min(a_max_t, a_total_p/pavs_input), 
-                "pavs_in": pavs_input, "pavs_rec": pavs_recomendados, "esquina": esquina,
-                "tp": area_terreno * l['tp'], "perm": any(z in zona for z in dados_atv["zs"]),
-                "dados": dados_atv, "gab": l['gab']
+                "atv": atv_final, "zona": zona, "a_t": area_terreno, "a_max_t": area_terreno * l['to'],
+                "a_total_max": potencial_maximo, "a_final": area_final, "modo": modo,
+                "a_pav": area_final / pavs_input, "pavs_in": pavs_input, 
+                "pavs_rec": math.floor(l['ca'] / l['to']) if l['to'] > 0 else 1,
+                "esquina": esquina, "tp": area_terreno * l['tp'], 
+                "perm": any(z in zona for z in dados_atv["zs"]),
+                "dados": dados_atv, "gab": l['gab'], "l_to": l['to']
             }
 
     if st.button("🗑️ LIMPAR TUDO", use_container_width=True):
@@ -127,31 +136,23 @@ with c2:
 if st.session_state.relatorio:
     r = st.session_state.relatorio
     st.divider()
-    st.subheader(f"📑 ESTUDO DE VIABILIDADE: {r['atv'].upper()}")
+    st.subheader(f"📑 ESTUDO DE VIABILIDADE ({r['modo']}): {r['atv'].upper()}")
     
     col1, col2 = st.columns(2)
     with col1:
         st.info("### 🏗️ ÍNDICES E POTENCIAL")
-        st.write(f"**Área Máx. Térreo:** {r['a_max_t']:.2f} m²")
-        st.write(f"**Potencial Construtivo (CA 1.0):** {r['a_total']:.2f} m²")
+        st.write(f"**Potencial Construtivo Total:** {r['a_total_max']:.2f} m²")
+        st.write(f"**Área de Projeto Considerada:** {r['a_final']:.2f} m²")
         st.write(f"**Gabarito Máximo:** {r['gab']} metros")
-        st.write(f"**Área Permeável:** {r['tp']:.2f} m²")
+        st.write(f"**Jardim Mínimo:** {r['tp']:.2f} m²")
+    
     with col2:
-        st.info("### 📏 RECUOS (AFASTAMENTOS)")
+        st.info("### 📏 RECUOS E AFASTAMENTOS")
         f = "3,00m (Frente e Lateral Esquina)" if r['esquina'] else "3,00m (Frente)"
         st.write(f"**Frontal:** {f}")
-        st.write("**Lateral:** 1,50m (c/ aberturas)")
-        st.write("**Fundos:** 1,50m (c/ aberturas)")
-
-    
+        st.write("**Lateral / Fundos:** 1,50m (mínimo)")
+        st.write(f"**TO Máxima Permitida:** {r['l_to']*100}%")
 
     col3, col4 = st.columns(2)
     with col3:
-        st.info("### 🚽 VAGAS E SANITÁRIO")
-        v = max(1, math.ceil(r['a_total']/r['dados']['v']))
-        st.write(f"**Vagas Estimadas:** {v}")
-        st.write(f"**Sanitários Mínimos:** {max(1, math.ceil(r['a_total']/r['dados']['s']))}")
-    with col4:
-        st.info(f"### 🏢 RECOMENDAÇÃO TÉCNICA")
-        st.metric("Sugestão de Pavimentos", f"{r['pavs_rec']} andares")
-        st.write(f"Simulação atual ({r['pavs_in']} pav.): **{r['a_pav']:.2f} m²** por andar.")
+        st.info("###
