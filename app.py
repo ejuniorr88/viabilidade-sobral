@@ -20,28 +20,51 @@ def carregar_dados_kmz():
 
 root = carregar_dados_kmz()
 
-# --- SIDEBAR: INTERATIVIDADE DINÂMICA ---
+# --- SIDEBAR: CATEGORIAS FACILITADAS ---
 with st.sidebar:
-    st.header("📋 Dados do Projeto")
-    uso_geral = st.selectbox("Categoria de Uso", ["Residencial", "Comercial", "Serviço"])
+    st.header("📋 O que você deseja construir?")
     
-    sub_uso = ""
-    if uso_geral == "Residencial":
-        sub_uso = st.selectbox("Tipo", ["Unifamiliar", "Multifamiliar"])
-    elif uso_geral == "Comercial":
-        sub_uso = st.selectbox("Atividade", ["Varejo/Loja", "Depósito/Galpão", "Supermercado", "Posto de Combustível"])
-    elif uso_geral == "Serviço":
-        sub_uso = st.selectbox("Atividade", ["Escritório/Consultório", "Saúde (Clínica/Hosp.)", "Educação", "Hospedagem"])
+    # Primeiro nível de escolha: Linguagem simples
+    categoria = st.selectbox("Escolha uma categoria:", [
+        "Residencial (Casas e Prédios)", 
+        "Comércio e Lojas", 
+        "Logística e Indústria (Galpões)",
+        "Saúde e Clínicas",
+        "Educação e Escolas",
+        "Serviços e Escritórios"
+    ])
 
+    # Segundo nível: Subgrupos baseados na LC 90 e 91
+    sub_uso = ""
+    if categoria == "Residencial (Casas e Prédios)":
+        sub_uso = st.selectbox("Tipo de moradia:", ["Casa Individual (Unifamiliar)", "Prédio/Apartamentos (Multifamiliar)"])
+    
+    elif categoria == "Comércio e Lojas":
+        sub_uso = st.selectbox("Tipo de comércio:", ["Loja de Rua/Varejo", "Supermercado", "Centro Comercial/Mall"])
+    
+    elif categoria == "Logística e Indústria (Galpões)":
+        sub_uso = st.selectbox("Tipo de instalação:", ["Galpão de Armazenamento/Depósito", "Indústria de Pequeno Porte", "Oficina Mecânica"])
+    
+    elif categoria == "Saúde e Clínicas":
+        sub_uso = st.selectbox("Tipo de serviço de saúde:", ["Consultório Médico", "Clínica com Exames", "Hospital/Pronto Socorro"])
+    
+    elif categoria == "Educação e Escolas":
+        sub_uso = st.selectbox("Nível de ensino:", ["Cursos Livres (Idiomas/Autoescola)", "Escola Infantil/Fundamental", "Faculdade/Universidade"])
+    
+    elif categoria == "Serviços e Escritórios":
+        sub_uso = st.selectbox("Tipo de serviço:", ["Escritório em Geral", "Academia", "Salão de Beleza/Estética"])
+
+    st.divider()
+    st.header("📐 Dimensões do Lote")
     col1, col2 = st.columns(2)
-    testada = col1.number_input("Testada (m)", min_value=1.0, value=10.0)
-    profundidade = col2.number_input("Profundidade (m)", min_value=1.0, value=30.0)
+    testada = col1.number_input("Largura (Testada)", min_value=1.0, value=10.0)
+    profundidade = col2.number_input("Profundidade", min_value=1.0, value=30.0)
     
     area_terreno = testada * profundidade
-    area_const_total = st.number_input("Área Construída (m²)", min_value=1.0, value=200.0)
-    num_pavimentos = st.number_input("Pavimentos", min_value=1, value=1)
+    area_const_total = st.number_input("Área Construída Total (m²)", min_value=1.0, value=200.0)
+    num_pavimentos = st.number_input("Quantos andares?", min_value=1, value=1)
     
-    st.info(f"Área do Terreno: {area_terreno:.2f} m²")
+    st.info(f"Área Total do Lote: {area_terreno:.2f} m²")
 
 # --- MAPA ---
 st.subheader("\"lote\"")
@@ -61,64 +84,74 @@ if out and out.get("last_clicked"):
         st.session_state.clique = pos
         st.rerun()
 
-# --- PROCESSAMENTO DO EVT ---
+# --- RELATÓRIO EVT ---
 if st.session_state.clique:
-    # Lógica simplificada de Zona (ZAP, ZAM, ZCR)
-    # (O código de busca no KMZ permanece o mesmo aqui)
-    zona = "ZAP" # Exemplo fixo para demonstração do cálculo
+    # Lógica de extração de Zona (KMZ)
+    ponto = Point(st.session_state.clique[1], st.session_state.clique[0])
+    zona = "Zona não encontrada"
+    if root is not None:
+        namespaces = {'kml': 'http://www.opengis.net/kml/2.2'}
+        for pm in root.findall('.//kml:Placemark', namespaces):
+            poly = pm.find('.//kml:Polygon', namespaces)
+            if poly is not None:
+                coords_text = poly.find('.//kml:coordinates', namespaces).text.strip().split()
+                coords = [tuple(map(float, c.split(',')[:2])) for c in coords_text]
+                if Polygon(coords).contains(ponto):
+                    zona = pm.find('kml:name', namespaces).text
+                    break
 
-    # Regras de Vagas (LC 90 Anexo IV)
-    regras_vagas = {
-        "Unifamiliar": 1,
-        "Multifamiliar": math.floor(area_const_total / 65),
-        "Varejo/Loja": math.ceil(area_const_total / 50),
-        "Depósito/Galpão": math.ceil(area_const_total / 150),
-        "Escritório/Consultório": math.ceil(area_const_total / 60),
-        "Saúde (Clínica/Hosp.)": math.ceil(area_const_total / 40)
+    # Parâmetros simplificados Sobral
+    db_regras = {
+        "ZAP": {"TO": 0.70, "CA": 1.0, "TP": 0.10},
+        "ZAM": {"TO": 0.60, "CA": 1.0, "TP": 0.15},
+        "ZCR": {"TO": 0.80, "CA": 1.0, "TP": 0.05}
     }
-    vagas_final = regras_vagas.get(sub_uso, 1)
+    r = db_regras.get(zona, {"TO": 0.60, "CA": 1.0, "TP": 0.15})
 
     st.divider()
-    st.subheader(f"📑 ESTUDO DE VIABILIDADE TÉCNICA (EVT) - {sub_uso.upper()}")
+    st.subheader(f"📑 EVT - {sub_uso.upper()}")
     
-    # Layout do Relatório Profissional
-    col_evt1, col_evt2 = st.columns(2)
-
-    with col_evt1:
-        st.markdown("### 1. ÍNDICES URBANÍSTICOS")
-        to_limite = 0.70 # Exemplo ZAP
+    tab1, tab2, tab3, tab4 = st.tabs(["🏗️ Índices", "📏 Recuos", "🚽 Sanitário", "🚗 Vagas"])
+    
+    with tab1:
         to_calc = (area_const_total / num_pavimentos) / area_terreno
-        st.write(f"**Taxa de Ocupação:** {to_limite*100}%")
-        st.write(f"**Área Livre Obrigatória:** {area_terreno * (1 - to_limite):.2f}m²")
-        st.write(f"**C.A. Básico:** 1.0")
+        st.write(f"**Zona:** {zona}")
+        st.write(f"**Projeção Máxima Permitida:** {area_terreno * r['TO']:.2f}m²")
+        st.write(f"**Área de Permeabilidade Mínima:** {area_terreno * r['TP']:.2f}m²")
 
-    with col_evt2:
-        st.markdown("### 2. RECUOS OBRIGATÓRIOS")
-        st.write("**Frontal:** 3,00 m")
-        st.write("**Laterais/Fundos:** Isento se parede cega.")
+    with tab2:
+        st.write("**Afastamentos Obrigatórios (LC 90):**")
+        st.write("- **Frontal:** 3,00m (Uso para vagas descobertas permitido)")
+        st.write("- **Laterais/Fundos:** Isento para paredes cegas; 1,50m para aberturas.")
 
-    st.markdown("---")
-    c_san, c_vagas = st.columns(2)
-
-    with c_san:
-        st.markdown("### 3. DIMENSIONAMENTO SANITÁRIO")
+    with tab3:
         if area_const_total <= 150:
-            st.write("- 01 Vaso + 01 Lavatório (Unissex/PCD)")
+            st.write("✅ 01 Vaso + 01 Lavatório (Unissex/PCD)")
         else:
-            st.write("- 02 Vasos + 02 Lavatórios (Separados M/F)")
+            st.write("✅ 02 Vasos + 02 Lavatórios (Masculino/Feminino)")
 
-    with c_vagas:
-        st.markdown("### 4. ESTACIONAMENTO E CARGA")
-        st.write(f"**Vagas de Carro:** {max(1, vagas_final)} vaga(s)")
-        if sub_uso == "Depósito/Galpão":
-            st.warning("Obrigatório pátio interno de Carga e Descarga.")
+    with tab4:
+        # Lógica de Vagas Dinâmica (Base Anexo IV - LC 90)
+        if "Galpão" in sub_uso:
+            vagas = math.ceil(area_const_total / 150)
+            st.write(f"**Vagas de Veículos:** {vagas} vaga(s)")
+            st.warning("⚠️ Obrigatório pátio interno para Carga e Descarga.")
+        elif "Loja" in sub_uso or "Escritório" in sub_uso:
+            vagas = math.ceil(area_const_total / 50)
+            st.write(f"**Vagas de Veículos:** {vagas} vaga(s)")
+        elif "Faculdade" in sub_uso:
+            vagas = math.ceil(area_const_total / 35)
+            st.write(f"**Vagas de Veículos:** {vagas} vaga(s)")
+        else:
+            vagas = 1
+            st.write(f"**Vagas de Veículos:** {vagas} vaga(s)")
 
     st.markdown("---")
-    # CONCLUSÃO
-    if to_calc <= to_limite:
-        st.success(f"✅ **CONCLUSÃO:** Projeto VIÁVEL para {sub_uso}.")
+    # CONCLUSÃO AUTOMÁTICA
+    if to_calc <= r['TO']:
+        st.success("✅ PROJETO VIÁVEL")
     else:
-        st.error(f"❌ **CONCLUSÃO:** INVIÁVEL. Ocupação excede o limite da zona.")
+        st.error(f"❌ INVIÁVEL (TO calculada: {to_calc*100:.1f}% | Máxima: {r['TO']*100}%)")
 
 else:
-    st.info("👈 Selecione a atividade e clique no mapa para gerar o EVT.")
+    st.info("👈 Selecione o que deseja construir na esquerda e clique no lote no mapa.")
