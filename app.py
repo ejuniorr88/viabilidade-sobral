@@ -38,7 +38,7 @@ atividades_db = {
     "Faculdade / Superior": {"v": 35, "s": 40, "cat": "E3", "zonas": ["ZAP", "ZAM", "ZCR"]}
 }
 
-# --- SIDEBAR: ESTRUTURA FIXA (MANTIDA) ---
+# --- SIDEBAR: ESTRUTURA FIXA ---
 with st.sidebar:
     st.header("📋 1. Escolha por Categoria")
     cat = st.selectbox("Selecione a Categoria:", ["Residencial", "Comercial", "Serviço", "Saúde/Educação"])
@@ -59,4 +59,36 @@ with st.sidebar:
     )
 
     atv_final = escolha_busca if escolha_busca != "" else escolha_quadro
-    dados_atv = atividades_db[atv
+    dados_atv = atividades_db[atv_final]
+
+    st.divider()
+    st.header("📐 3. Dimensões do Lote")
+    testada = st.number_input("Testada (m)", min_value=1.0, value=10.0)
+    profundidade = st.number_input("Profundidade (m)", min_value=1.0, value=30.0)
+    area_c = st.number_input("Área Construída Total (m²)", min_value=1.0, value=200.0)
+    pavs = st.number_input("Pavimentos", min_value=1, value=1)
+    area_t = testada * profundidade
+
+# --- MAPA ---
+st.subheader("\"lote\"")
+m = folium.Map(location=[-3.6890, -40.3480], zoom_start=15)
+folium.TileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
+                attr='Google Satellite', name='Google Satellite').add_to(m)
+
+if 'clique' not in st.session_state: st.session_state.clique = None
+if st.session_state.clique:
+    folium.Marker(st.session_state.clique, icon=folium.Icon(color="red", icon="home")).add_to(m)
+
+out = st_folium(m, width="100%", height=400)
+if out and out.get("last_clicked"):
+    pos = [out["last_clicked"]["lat"], out["last_clicked"]["lng"]]
+    if st.session_state.clique != pos:
+        st.session_state.clique = pos
+        st.rerun()
+
+# --- BOTÕES DE CONTROLE ---
+st.markdown("---")
+col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+
+with col_btn2:
+    gerar_evt = st.button("🚀 GERAR ESTUDO DE VIABILIDADE", use_container_width=True
