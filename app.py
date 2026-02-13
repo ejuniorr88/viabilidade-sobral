@@ -6,7 +6,10 @@ import zipfile
 import xml.etree.ElementTree as ET
 import math
 
+# 1. Configuração da Página
 st.set_page_config(page_title="Viabilidade Sobral", layout="wide")
+
+# Título minimalista
 st.markdown("<h1 style='text-align: center;'>Viabilidade</h1>", unsafe_allow_html=True)
 
 @st.cache_data
@@ -16,32 +19,58 @@ def carregar_dados_kmz():
             kml_name = [f for f in z.namelist() if f.endswith('.kml')][0]
             with z.open(kml_name) as f:
                 return ET.fromstring(f.read())
-    except Exception: return None
+    except Exception:
+        return None
 
 root = carregar_dados_kmz()
 
-# --- BANCO DE DADOS TÉCNICO (SOBRAL LC 90/91) ---
+# --- BANCO DE DADOS TÉCNICO FIXO (SOBRAL LC 90/91) ---
 atividades_db = {
-    "Casa Individual (Unifamiliar)": {"v": 1, "s": 150, "cat": "R1", "zonas_permitidas": ["ZAP", "ZAM", "ZPR", "ZCR", "ZPH"]},
-    "Prédio (Multifamiliar)": {"v": 65, "s": 150, "cat": "R3", "zonas_permitidas": ["ZAP", "ZAM", "ZCR"]},
-    "Farmácia": {"v": 50, "s": 100, "cat": "C1", "zonas_permitidas": ["ZAP", "ZAM", "ZCR", "ZPR"]},
-    "Depósito / Galpão": {"v": 150, "s": 200, "cat": "S3", "zonas_permitidas": ["ZAP", "ZAM", "ZDE", "ZIND"]},
-    "Supermercado": {"v": 25, "s": 80, "cat": "C2", "zonas_permitidas": ["ZAP", "ZAM", "ZCR"]},
-    "Clínica Médica": {"v": 40, "s": 50, "cat": "S2", "zonas_permitidas": ["ZAP", "ZAM", "ZCR", "ZPR"]},
-    "Escritório": {"v": 60, "s": 70, "cat": "S1", "zonas_permitidas": ["ZAP", "ZAM", "ZCR", "ZPR"]}
+    "Casa Individual (Unifamiliar)": {"v": 1, "s": 150, "cat": "R1", "zonas": ["ZAP", "ZAM", "ZPR", "ZCR", "ZPH"]},
+    "Prédio (Multifamiliar)": {"v": 65, "s": 150, "cat": "R3", "zonas": ["ZAP", "ZAM", "ZCR"]},
+    "Loja / Comércio": {"v": 50, "s": 100, "cat": "C1", "zonas": ["ZAP", "ZAM", "ZCR", "ZPR"]},
+    "Farmácia": {"v": 50, "s": 100, "cat": "C1", "zonas": ["ZAP", "ZAM", "ZCR", "ZPR"]},
+    "Depósito / Galpão": {"v": 150, "s": 200, "cat": "S3", "zonas": ["ZAP", "ZAM", "ZDE", "ZIND"]},
+    "Supermercado": {"v": 25, "s": 80, "cat": "C2", "zonas": ["ZAP", "ZAM", "ZCR"]},
+    "Clínica Médica": {"v": 40, "s": 50, "cat": "S2", "zonas": ["ZAP", "ZAM", "ZCR", "ZPR"]},
+    "Hospital / Maternidade": {"v": 80, "s": 30, "cat": "S3", "zonas": ["ZAP", "ZAM", "ZCR"]},
+    "Escritório": {"v": 60, "s": 70, "cat": "S1", "zonas": ["ZAP", "ZAM", "ZCR", "ZPR"]},
+    "Faculdade / Superior": {"v": 35, "s": 40, "cat": "E3", "zonas": ["ZAP", "ZAM", "ZCR"]}
 }
 
+# --- SIDEBAR: ESTRUTURA FIXA DE ESCOLHA ---
 with st.sidebar:
-    st.header("📋 Configuração do Estudo")
-    busca = st.selectbox("Escolha ou digite a Atividade:", options=[""] + sorted(list(atividades_db.keys())))
+    st.header("📋 1. Escolha por Categoria")
+    cat = st.selectbox("Selecione a Categoria:", ["Residencial", "Comercial", "Serviço", "Saúde/Educação"])
     
+    if cat == "Residencial": sub = ["Casa Individual (Unifamiliar)", "Prédio (Multifamiliar)"]
+    elif cat == "Comercial": sub = ["Loja / Comércio", "Farmácia", "Depósito / Galpão", "Supermercado"]
+    elif cat == "Serviço": sub = ["Escritório"]
+    else: sub = ["Clínica Médica", "Hospital / Maternidade", "Faculdade / Superior"]
+    
+    escolha_quadro = st.selectbox("Tipo de uso (Menu):", sub)
+
+    st.markdown("---")
+    
+    st.header("🔍 2. Busca por Digitação")
+    escolha_busca = st.selectbox(
+        "Digite para encontrar o uso:",
+        options=[""] + sorted(list(atividades_db.keys())),
+        index=0,
+        help="Campo de busca independente."
+    )
+
+    # Lógica de prioridade: Busca manual prevalece
+    atv_final = escolha_busca if escolha_busca != "" else escolha_quadro
+    dados_atv = atividades_db[atv_final]
+
     st.divider()
+    st.header("📐 3. Dimensões do Lote")
     testada = st.number_input("Testada (m)", min_value=1.0, value=10.0)
     profundidade = st.number_input("Profundidade (m)", min_value=1.0, value=30.0)
-    area_c = st.number_input("Área Construída Total (m²)", min_value=1.0, value=210.0)
+    area_c = st.number_input("Área Construída Total (m²)", min_value=1.0, value=200.0)
     pavs = st.number_input("Pavimentos", min_value=1, value=1)
     area_t = testada * profundidade
-    st.info(f"Área do Terreno: {area_t} m²")
 
 # --- MAPA ---
 st.subheader("\"lote\"")
@@ -54,15 +83,23 @@ if st.session_state.clique:
 
 out = st_folium(m, width="100%", height=400)
 if out and out.get("last_clicked"):
-    st.session_state.clique = [out["last_clicked"]["lat"], out["last_clicked"]["lng"]]
-    st.rerun()
+    pos = [out["last_clicked"]["lat"], out["last_clicked"]["lng"]]
+    if st.session_state.clique != pos:
+        st.session_state.clique = pos
+        st.rerun()
 
+# --- BOTÃO DE DISPARO ---
 st.markdown("---")
-if st.button("🚀 GERAR ESTUDO DE VIABILIDADE", use_container_width=True):
-    if not st.session_state.clique or busca == "":
-        st.error("⚠️ Selecione a atividade na lateral e clique em um lote no mapa.")
+col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+with col_btn2:
+    gerar_evt = st.button("🚀 GERAR ESTUDO DE VIABILIDADE", use_container_width=True)
+
+# --- RESULTADO DO EVT ---
+if gerar_evt:
+    if not st.session_state.clique:
+        st.error("📍 Por favor, clique em um lote no mapa primeiro.")
     else:
-        # Identificação da Zona
+        # Identificação da Zona via KMZ
         ponto = Point(st.session_state.clique[1], st.session_state.clique[0])
         zona_clicada = "Desconhecida"
         if root is not None:
@@ -76,59 +113,43 @@ if st.button("🚀 GERAR ESTUDO DE VIABILIDADE", use_container_width=True):
                         zona_clicada = pm.find('kml:name', namespaces).text
                         break
 
-        dados = atividades_db[busca]
-        
-        # --- CÁLCULOS ---
+        # Cálculo de Índices
         to_calc = (area_c / pavs) / area_t
         ca_calc = area_c / area_t
         
-        # Parâmetros da Zona (Exemplo Sobral)
-        limites = {"ZAP": {"TO": 0.7, "CA": 1.0}, "ZAM": {"TO": 0.6, "CA": 1.0}, "ZCR": {"TO": 0.8, "CA": 1.0}}
-        lim = limites.get(zona_clicada, {"TO": 0.6, "CA": 1.0})
-
-        st.subheader(f"📑 ESTUDO DE VIABILIDADE: {busca.upper()}")
+        # Limites por Zona (Conforme Anexo IV - LC 91)
+        limites_zonas = {
+            "ZAP": {"TO": 0.70, "CA": 1.0, "TP": 0.10},
+            "ZAM": {"TO": 0.60, "CA": 1.0, "TP": 0.15},
+            "ZCR": {"TO": 0.80, "CA": 1.0, "TP": 0.05}
+        }
+        lim = limites_zonas.get(zona_clicada, {"TO": 0.60, "CA": 1.0, "TP": 0.15})
         
-        # 1. Admissibilidade
-        permitido = any(z in zona_clicada for z in dados["zonas_permitidas"])
+        # Verificação de Admissibilidade
+        permitido = any(z in zona_clicada for z in dados_atv["zonas"])
+
+        st.divider()
+        st.subheader(f"📑 ESTUDO DE VIABILIDADE: {atv_final.upper()}")
+        
+        # 1. Quadro de Admissibilidade
         if permitido:
-            st.success(f"✔️ O uso **{busca}** é PERMITIDO na zona **{zona_clicada}**.")
+            st.success(f"✔️ O uso **{atv_final}** é PERMITIDO na zona **{zona_clicada}**.")
         else:
-            st.error(f"❌ O uso **{busca}** NÃO é previsto para a zona **{zona_clicada}**.")
+            st.error(f"❌ O uso **{atv_final}** NÃO é previsto para a zona **{zona_clicada}**.")
 
-        # 2. Quadros de Índices
-        
+        # 2. Exibição dos Quadros de Índices
+        [Image of a diagram showing building site coverage and floor area ratio concepts]
         c1, c2 = st.columns(2)
         with c1:
             st.info("### 🏗️ ÍNDICES URBANÍSTICOS")
             st.write(f"**Taxa de Ocupação:** {to_calc*100:.1f}%")
-            if to_calc <= lim["TO"]: st.write("✅ Dentro do limite (70%)")
-            else: st.write(f"⚠️ **ULTRAPASSOU O LIMITE** ({lim['TO']*100}%)")
-            
-            st.write(f"**C.A. Básico:** {ca_calc:.2f}")
-            if ca_calc <= lim["CA"]: st.write("✅ Dentro do limite (1.0)")
-            else: st.write("⚠️ **EXCEDE C.A. BÁSICO** (Requer Outorga Onerosa)")
+            status_to = "✅ DENTRO DA NORMA" if to_calc <= lim["TO"] else f"⚠️ EXCEDE O LIMITE ({lim['TO']*100}%)"
+            st.write(f"**Status TO:** {status_to}")
+            st.write(f"**C.A. Básico:** {ca_calc:.2f} (Limite: {lim['CA']})")
 
         with c2:
-            st.info("### 📏 AFASTAMENTOS")
-            st.write("**Frontal:** 3,00m")
-            st.write("**Lateral:** 1,50m (com aberturas)")
-            st.write("**Fundos:** 1,50m")
-
-        c3, c4 = st.columns(2)
-        with c3:
-            st.info("### 🚽 SANITÁRIO")
-            vasos = math.ceil(area_c / dados['s'])
-            st.write(f"**Necessário:** {max(1, vasos)} conjunto(s)")
-
-        with c4:
-            st.info("### 🚗 VAGAS")
-            vagas = math.ceil(area_c / dados['v']) if dados['v'] > 0 else 1
-            st.write(f"**Vagas Carro:** {vagas} vaga(s)")
-            st.write(f"**Bicicletas:** {max(5, math.ceil(vagas*0.1))} vagas")
-
-        st.divider()
-        # CONCLUSÃO FINAL
-        if permitido and to_calc <= lim["TO"]:
-            st.success("🏁 **CONCLUSÃO: PROJETO VIÁVEL.** Atende aos índices e ao zoneamento.")
-        else:
-            st.error("🏁 **CONCLUSÃO: PROJETO INVIÁVEL.** Verifique os erros acima.")
+            st.info("### 📏 RECUOS E AFASTAMENTOS")
+            st.write("**Frontal:** 3,00 m")
+            st.write("**Laterais:** 1,50 m (com aberturas)")
+            st.write("**Fundos:** 1,50 m")
+            st.write(f"**Área Permeável (mín):** {area_
