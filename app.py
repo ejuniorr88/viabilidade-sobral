@@ -23,16 +23,13 @@ def carregar_dados_kmz():
 
 root = carregar_dados_kmz()
 
-# --- BANCO DE DADOS ATUALIZADO (PADRONIZADO PARA BUSCA) ---
+# --- BANCO DE DADOS ATUALIZADO ---
 atividades_db = {
     "Casa Individual (Unifamiliar)": {"v": 1, "s": 150, "zs": ["ZAP", "ZAM", "ZPR", "ZCR", "ZPH"]},
     "Prédio de Apartamentos (Multifamiliar)": {"v": 65, "s": 150, "zs": ["ZAP", "ZAM", "ZCR"]},
     "Loja / Comércio Varejista": {"v": 50, "s": 100, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]},
     "Farmácia": {"v": 50, "s": 100, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]},
     "Depósito / Galpão": {"v": 150, "s": 200, "zs": ["ZAP", "ZAM", "ZDE", "ZIND"]},
-    "Supermercado": {"v": 25, "s": 80, "zs": ["ZAP", "ZAM", "ZCR"]},
-    "Clínica Médica / Consultório": {"v": 40, "s": 50, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]},
-    "Hospital / Maternidade": {"v": 80, "s": 30, "zs": ["ZAP", "ZAM", "ZCR"]},
     "Escola - Educação Infantil": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
     "Escola - Ensino Fundamental": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
     "Escola - Ensino Médio": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
@@ -46,15 +43,14 @@ with st.sidebar:
     cat = st.selectbox("Selecione por Categoria:", ["Residencial", "Comercial", "Serviço", "Saúde/Educação"])
     subs = {
         "Residencial": ["Casa Individual (Unifamiliar)", "Prédio de Apartamentos (Multifamiliar)"],
-        "Comercial": ["Loja / Comércio Varejista", "Farmácia", "Depósito / Galpão", "Supermercado"],
+        "Comercial": ["Loja / Comércio Varejista", "Farmácia", "Depósito / Galpão"],
         "Serviço": ["Escritório / Prestação de Serviço"],
-        "Saúde/Educação": ["Clínica Médica / Consultório", "Hospital / Maternidade", "Escola - Educação Infantil", "Escola - Ensino Fundamental", "Escola - Ensino Médio", "Escola - Ensino Superior / Faculdade"]
+        "Saúde/Educação": ["Escola - Educação Infantil", "Escola - Ensino Fundamental", "Escola - Ensino Médio", "Escola - Ensino Superior / Faculdade"]
     }
     escolha_cat = st.selectbox("Opções na categoria:", subs[cat])
     
     st.markdown("---")
     st.header("🔍 2. Busca Direta")
-    # Agora ao digitar "Escola", aparecerão todas as variações listadas acima
     escolha_busca = st.selectbox("Ou digite para pesquisar:", [""] + sorted(list(atividades_db.keys())))
     
     atv_final = escolha_busca if escolha_busca != "" else escolha_cat
@@ -65,7 +61,7 @@ with st.sidebar:
     testada = st.number_input("Testada / Frente (m):", value=10.0)
     profundidade = st.number_input("Profundidade (m):", value=30.0)
     esquina = st.checkbox("Lote de Esquina")
-    pavs = st.slider("Pavimentos Planejados:", 1, 12, 1)
+    pavs_input = st.slider("Simulação de Pavimentos:", 1, 15, 1)
     area_terreno = testada * profundidade
 
 # --- MAPA ---
@@ -101,16 +97,28 @@ with c2:
                             zona = pm.find('{http://www.opengis.net/kml/2.2}name').text
                             break
             
-            lims = {"ZAP": {"to": 0.7, "ca": 1.0, "tp": 0.1}, "ZAM": {"to": 0.6, "ca": 1.0, "tp": 0.15}, "ZCR": {"to": 0.8, "ca": 2.0, "tp": 0.05}}
-            l = lims.get(zona, {"to": 0.6, "ca": 1.0, "tp": 0.15})
-            a_max_t, a_total_p = area_terreno * l['to'], area_terreno * l['ca']
+            # Limites por Zona (Conforme LC 91)
+            lims = {
+                "ZAP": {"to": 0.7, "ca": 1.0, "tp": 0.1, "gab": 12},
+                "ZAM": {"to": 0.6, "ca": 1.0, "tp": 0.15, "gab": 15},
+                "ZCR": {"to": 0.8, "ca": 2.5, "tp": 0.05, "gab": 45}
+            }
+            l = lims.get(zona, {"to": 0.6, "ca": 1.0, "tp": 0.15, "gab": 10})
             
+            a_max_t = area_terreno * l['to']
+            a_total_p = area_terreno * l['ca']
+            
+            # Recomendação de Pavimentos (Potencial Construtivo / Área máxima de projeção)
+            pavs_recomendados = math.floor(l['ca'] / l['to']) if l['to'] > 0 else 1
+
             st.session_state.relatorio = {
                 "atv": atv_final, "zona": zona, "a_t": area_terreno, "a_max_t": a_max_t,
-                "a_total": a_total_p, "a_pav": min(a_max_t, a_total_p/pavs), "pavs": pavs,
-                "esquina": esquina, "tp": area_terreno * l['tp'], "perm": any(z in zona for z in dados_atv["zs"]),
-                "dados": dados_atv
+                "a_total": a_total_p, "a_pav": min(a_max_t, a_total_p/pavs_input), 
+                "pavs_in": pavs_input, "pavs_rec": pavs_recomendados, "esquina": esquina,
+                "tp": area_terreno * l['tp'], "perm": any(z in zona for z in dados_atv["zs"]),
+                "dados": dados_atv, "gab": l['gab']
             }
+
     if st.button("🗑️ LIMPAR TUDO", use_container_width=True):
         st.session_state.clique, st.session_state.relatorio = None, None
         st.rerun()
@@ -120,29 +128,30 @@ if st.session_state.relatorio:
     r = st.session_state.relatorio
     st.divider()
     st.subheader(f"📑 ESTUDO DE VIABILIDADE: {r['atv'].upper()}")
-    if r['perm']: st.success(f"✔️ USO ADMISSÍVEL na zona {r['zona']}.")
-    else: st.error(f"❌ USO NÃO PREVISTO na zona {r['zona']}.")
-
     
-
     col1, col2 = st.columns(2)
     with col1:
         st.info("### 🏗️ ÍNDICES E POTENCIAL")
         st.write(f"**Área Máx. Térreo:** {r['a_max_t']:.2f} m²")
-        st.write(f"**Potencial Total:** {r['a_total']:.2f} m²")
-        st.write(f"**Jardim Mínimo:** {r['tp']:.2f} m²")
+        st.write(f"**Potencial Construtivo (CA 1.0):** {r['a_total']:.2f} m²")
+        st.write(f"**Gabarito Máximo:** {r['gab']} metros")
+        st.write(f"**Área Permeável:** {r['tp']:.2f} m²")
     with col2:
-        st.info("### 📏 RECUOS")
+        st.info("### 📏 RECUOS (AFASTAMENTOS)")
         f = "3,00m (Frente e Lateral Esquina)" if r['esquina'] else "3,00m (Frente)"
         st.write(f"**Frontal:** {f}")
-        st.write("**Laterais:** 1,50m (com janelas)")
+        st.write("**Lateral:** 1,50m (c/ aberturas)")
+        st.write("**Fundos:** 1,50m (c/ aberturas)")
+
+    
 
     col3, col4 = st.columns(2)
     with col3:
         st.info("### 🚽 VAGAS E SANITÁRIO")
         v = max(1, math.ceil(r['a_total']/r['dados']['v']))
-        st.write(f"**Vagas Carro:** {v}")
-        st.write(f"**Sanitários:** {max(1, math.ceil(r['a_total']/r['dados']['s']))} conj.")
+        st.write(f"**Vagas Estimadas:** {v}")
+        st.write(f"**Sanitários Mínimos:** {max(1, math.ceil(r['a_total']/r['dados']['s']))}")
     with col4:
-        st.info(f"### 🏢 PROJEÇÃO ({r['pavs']} pav.)")
-        st.metric("Laje sugerida por andar", f"{r['a_pav']:.2f} m²")
+        st.info(f"### 🏢 RECOMENDAÇÃO TÉCNICA")
+        st.metric("Sugestão de Pavimentos", f"{r['pavs_rec']} andares")
+        st.write(f"Simulação atual ({r['pavs_in']} pav.): **{r['a_pav']:.2f} m²** por andar.")
