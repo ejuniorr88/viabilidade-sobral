@@ -8,7 +8,7 @@ import math
 
 st.set_page_config(page_title="Viabilidade Sobral", layout="wide")
 
-# Título minimalista conforme solicitado
+# Título minimalista
 st.markdown("<h1 style='text-align: center;'>Viabilidade</h1>", unsafe_allow_html=True)
 
 @st.cache_data
@@ -27,19 +27,17 @@ with st.sidebar:
     st.header("📋 Dados do Projeto")
     tipo_uso = st.selectbox("Tipo de Uso", 
                             ["Residencial Unifamiliar", "Residencial Multifamiliar", 
-                             "Comércio", "Serviço", "Indústria"])
+                             "Comercial (Depósito/Galpão)", "Comércio Varejista", "Serviço"])
     
-    col_dim1, col_dim2 = st.columns(2)
-    testada = col_dim1.number_input("Testada (m)", min_value=1.0, value=10.0)
-    profundidade = col_dim2.number_input("Profundidade (m)", min_value=1.0, value=25.0)
-    
-    config_lote = st.radio("Configuração do Lote", ["Meio de Quadra", "Esquina"])
+    col1, col2 = st.columns(2)
+    testada = col1.number_input("Testada (m)", min_value=1.0, value=10.0)
+    profundidade = col2.number_input("Profundidade (m)", min_value=1.0, value=30.0)
     
     area_terreno = testada * profundidade
-    area_const_total = st.number_input("Área Construída Total (m²)", min_value=1.0, value=150.0)
+    area_const_total = st.number_input("Área Construída Estimada (m²)", min_value=1.0, value=210.0)
     num_pavimentos = st.number_input("Número de Pavimentos", min_value=1, value=1)
     
-    st.info(f"Área do Terreno: {area_terreno} m²")
+    st.info(f"Área do Terreno: {area_terreno:.2f} m²")
 
 # --- MAPA ---
 st.subheader("\"lote\"")
@@ -59,7 +57,7 @@ if out and out.get("last_clicked"):
         st.session_state.clique = pos
         st.rerun()
 
-# --- LÓGICA DE CÁLCULO (LEIS 90/91/92 SOBRAL) ---
+# --- RELATÓRIO EVT ---
 if st.session_state.clique:
     ponto = Point(st.session_state.clique[1], st.session_state.clique[0])
     zona = "Zona não encontrada"
@@ -74,57 +72,71 @@ if st.session_state.clique:
                     zona = pm.find('kml:name', namespaces).text
                     break
 
-    st.divider()
-    st.subheader(f"📊 Resultado: {zona}")
-    
-    tab1, tab2, tab3, tab4 = st.tabs(["🏗️ Índices", "📏 Recuos", "🚽 Sanitário", "🚗 Vagas"])
-    
-    # Parâmetros oficiais de Sobral (Exemplos ZAP, ZAM, ZCR)
-    params = {
-        "ZAP": {"TO": 0.7, "CA": 2.0, "TP": 0.15},
-        "ZAM": {"TO": 0.6, "CA": 1.5, "TP": 0.20},
-        "ZCR": {"TO": 0.8, "CA": 4.0, "TP": 0.10}
+    # Lógica de Parâmetros de Sobral
+    db_regras = {
+        "ZAP": {"TO": 0.70, "CA": 1.0, "CAMax": 4.0, "TP": 0.10},
+        "ZAM": {"TO": 0.60, "CA": 1.0, "CAMax": 3.0, "TP": 0.15},
+        "ZCR": {"TO": 0.80, "CA": 1.0, "CAMax": 5.0, "TP": 0.05}
     }
-    p = params.get(zona, {"TO": 0.5, "CA": 1.0, "TP": 0.15})
+    r = db_regras.get(zona, {"TO": 0.60, "CA": 1.0, "CAMax": 2.0, "TP": 0.15})
 
-    with tab1:
+    st.divider()
+    st.subheader(f"📑 ESTUDO DE VIABILIDADE TÉCNICA (EVT) - {tipo_uso.upper()}")
+    
+    st.markdown(f"""
+    **DADOS DO LOTE:** **Zona:** {zona}  
+    **Terreno:** {area_terreno:.2f}m² ({testada:.2f}m x {profundidade:.2f}m)  
+    **Uso:** {tipo_uso}
+    """)
+
+    col_evt1, col_evt2 = st.columns(2)
+
+    with col_evt1:
+        st.markdown("### 1. ÍNDICES URBANÍSTICOS")
         to_calc = (area_const_total / num_pavimentos) / area_terreno
-        ca_calc = area_const_total / area_terreno
-        st.metric("Taxa Ocupação", f"{to_calc*100:.1f}%", f"Limite: {p['TO']*100}%")
-        st.metric("C.A. Atual", f"{ca_calc:.2f}", f"Limite: {p['CA']}")
-        st.metric("Permeabilidade", f"{p['TP']*100}%", "Mínimo")
-
-    with tab2:
-        st.write("**Parâmetros de Afastamento (LC 90):**")
-        st.write("- **Aberturas:** Mínimo de 1,50m das divisas (Art. 107).")
-        st.write("- **Subsolo:** Recuo de 1,50m de todas as divisas (Art. 70).")
-
-    with tab3:
-        st.write("**Instalações Sanitárias (Anexo III):**")
-        if "Residencial" not in tipo_uso:
-            st.write("- Mínimo de 1 sanitário a cada 50m de percurso.")
-            st.write("- Separação por sexo obrigatória p/ público > 20 pessoas.")
-        else:
-            st.write("- Mínimo de 1 banheiro completo por unidade.")
-
-    with tab4:
-        st.subheader("Estacionamento")
-        if "Multifamiliar" in tipo_uso:
-            vagas = math.floor(area_const_total / 65) # Média p/ unidades
-            st.write(f"- **Vagas de Carro:** {max(1, vagas)} vaga(s).")
-        elif tipo_uso in ["Comércio", "Serviço"]:
-            if area_const_total <= 100:
-                st.success("- **Isento de Vagas** (Área < 100m² em via local).")
-                vagas = 0
-            else:
-                vagas = math.ceil(area_const_total / 50)
-                st.write(f"- **Vagas de Carro:** {vagas} vaga(s).")
-        else:
-            vagas = 1
-            st.write("- **Vagas de Carro:** 1 vaga mínima.")
+        proj_max = area_terreno * r['TO']
+        st.write(f"**Taxa de Ocupação (TO):** {r['TO']*100}%")
+        st.write(f"**Projeção Máxima no Solo:** {proj_max:.2f}m²")
         
-        bicis = max(5, math.ceil(vagas * 0.1)) if vagas > 0 else 0
-        st.write(f"- **Bicicletário:** {bicis} vaga(s) (Mínimo legal).")
+        ca_calc = area_const_total / area_terreno
+        st.write(f"**C.A. Básico:** {r['CA']}")
+        st.write(f"**Área Construída Gratuita:** {area_terreno * r['CA']:.2f}m²")
+        st.write(f"**Taxa de Permeabilidade (TP):** {r['TP']*100}% ({area_terreno * r['TP']:.2f}m²)")
+
+    with col_evt2:
+        st.markdown("### 2. RECUOS OBRIGATÓRIOS")
+        st.write("**Frontal:** 3,00 m (Uso permitido para estacionamento descoberto)")
+        st.write("**Laterais e Fundos:** Isento se paredes cegas. Se houver aberturas: 1,50 m.")
+
+    st.markdown("---")
+    c_san, c_vagas = st.columns(2)
+
+    with c_san:
+        st.markdown("### 3. DIMENSIONAMENTO SANITÁRIO")
+        if area_const_total <= 150:
+            st.write("- Até 150 m²: 01 Vaso + 01 Lavatório (Unissex/PCD)")
+        else:
+            st.write("- Acima de 150 m²: 02 Vasos + 02 Lavatórios (M/F)")
+        st.write("- Copa/Cozinha: Obrigatório 01 pia para funcionários.")
+
+    with c_vagas:
+        st.markdown("### 4. ESTACIONAMENTO E CARGA")
+        if "Comercial" in tipo_uso:
+            vagas = math.ceil(area_const_total / 100)
+            st.write(f"**Vagas de Veículos:** {vagas} vaga(s)")
+            st.write("**Carga e Descarga:** Obrigatório pátio interno para caminhões.")
+        else:
+            st.write(f"**Vagas de Veículos:** 01 vaga por unidade.")
+
+    st.markdown("---")
+    # CONCLUSÃO
+    if to_calc <= r['TO']:
+        st.success(f"✅ **CONCLUSÃO:** O projeto é **VIÁVEL**, respeitando a TO de {r['TO']*100}%.")
+    else:
+        st.error(f"❌ **CONCLUSÃO:** **INVIÁVEL**. A ocupação de {to_calc*100:.1f}% excede o limite.")
+
+    st.info(f"**Dica de Projeto:** Como o terreno tem {area_terreno}m², a melhor estratégia é concentrar a construção respeitando o recuo frontal de 3m para vagas e garantir a área de permeabilidade de {area_terreno*r['TP']}m² nos fundos ou pátios laterais.")
+    st.caption("Recomenda-se confirmação junto ao órgão municipal competente.")
 
 else:
-    st.info("👈 Preencha os dados e clique no mapa.")
+    st.info("👈 Insira os dados e clique no mapa para gerar o EVT.")
