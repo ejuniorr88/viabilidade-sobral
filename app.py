@@ -23,7 +23,7 @@ def carregar_dados_kmz():
 
 root = carregar_dados_kmz()
 
-# --- BANCO DE DADOS FIEL ÀS TABELAS (COM SINÔNIMOS PARA BUSCA) ---
+# --- BANCO DE DADOS ATUALIZADO (PADRONIZADO PARA BUSCA) ---
 atividades_db = {
     "Casa Individual (Unifamiliar)": {"v": 1, "s": 150, "zs": ["ZAP", "ZAM", "ZPR", "ZCR", "ZPH"]},
     "Prédio de Apartamentos (Multifamiliar)": {"v": 65, "s": 150, "zs": ["ZAP", "ZAM", "ZCR"]},
@@ -33,12 +33,14 @@ atividades_db = {
     "Supermercado": {"v": 25, "s": 80, "zs": ["ZAP", "ZAM", "ZCR"]},
     "Clínica Médica / Consultório": {"v": 40, "s": 50, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]},
     "Hospital / Maternidade": {"v": 80, "s": 30, "zs": ["ZAP", "ZAM", "ZCR"]},
-    "Escola / Ensino Fundamental": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
-    "Faculdade / Ensino Superior": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
+    "Escola - Educação Infantil": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
+    "Escola - Ensino Fundamental": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
+    "Escola - Ensino Médio": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
+    "Escola - Ensino Superior / Faculdade": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
     "Escritório / Prestação de Serviço": {"v": 60, "s": 70, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]}
 }
 
-# --- SIDEBAR: ESTRUTURA FIXA (NÃO MUDAR) ---
+# --- SIDEBAR: ESTRUTURA FIXA ---
 with st.sidebar:
     st.header("📋 1. Escolha o Uso")
     cat = st.selectbox("Selecione por Categoria:", ["Residencial", "Comercial", "Serviço", "Saúde/Educação"])
@@ -46,15 +48,15 @@ with st.sidebar:
         "Residencial": ["Casa Individual (Unifamiliar)", "Prédio de Apartamentos (Multifamiliar)"],
         "Comercial": ["Loja / Comércio Varejista", "Farmácia", "Depósito / Galpão", "Supermercado"],
         "Serviço": ["Escritório / Prestação de Serviço"],
-        "Saúde/Educação": ["Clínica Médica / Consultório", "Hospital / Maternidade", "Escola / Ensino Fundamental", "Faculdade / Ensino Superior"]
+        "Saúde/Educação": ["Clínica Médica / Consultório", "Hospital / Maternidade", "Escola - Educação Infantil", "Escola - Ensino Fundamental", "Escola - Ensino Médio", "Escola - Ensino Superior / Faculdade"]
     }
     escolha_cat = st.selectbox("Opções na categoria:", subs[cat])
     
     st.markdown("---")
     st.header("🔍 2. Busca Direta")
+    # Agora ao digitar "Escola", aparecerão todas as variações listadas acima
     escolha_busca = st.selectbox("Ou digite para pesquisar:", [""] + sorted(list(atividades_db.keys())))
     
-    # Lógica de seleção final
     atv_final = escolha_busca if escolha_busca != "" else escolha_cat
     dados_atv = atividades_db[atv_final]
     
@@ -113,7 +115,7 @@ with c2:
         st.session_state.clique, st.session_state.relatorio = None, None
         st.rerun()
 
-# --- RESULTADO EM 4 QUADROS (MODELO ORIGINAL) ---
+# --- RESULTADO EM 4 QUADROS ---
 if st.session_state.relatorio:
     r = st.session_state.relatorio
     st.divider()
