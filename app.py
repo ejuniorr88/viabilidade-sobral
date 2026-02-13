@@ -45,23 +45,4 @@ with st.sidebar:
     
     if cat == "Residencial": sub = ["Casa Individual (Unifamiliar)", "Prédio (Multifamiliar)"]
     elif cat == "Comercial": sub = ["Loja / Comércio", "Farmácia", "Depósito / Galpão", "Supermercado"]
-    elif cat == "Serviço": sub = ["Escritório"]
-    else: sub = ["Clínica Médica", "Hospital / Maternidade", "Faculdade / Superior"]
-    
-    escolha_quadro = st.selectbox("Tipo de uso (Menu):", sub)
-
-    st.markdown("---")
-    st.header("🔍 2. Busca por Digitação")
-    escolha_busca = st.selectbox(
-        "Digite para encontrar o uso:",
-        options=[""] + sorted(list(atividades_db.keys())),
-        index=0
-    )
-
-    atv_final = escolha_busca if escolha_busca != "" else escolha_quadro
-    dados_atv = atividades_db[atv_final]
-
-    st.divider()
-    st.header("📐 3. Dimensões do Lote")
-    testada = st.number_input("Testada (m)", min_value=1.0, value=10.0)
-    profundidade =
+    elif cat ==
