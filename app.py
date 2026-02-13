@@ -91,4 +91,32 @@ st.markdown("---")
 col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
 
 with col_btn2:
-    gerar_evt = st.button("🚀 GERAR ESTUDO DE VIABILIDADE", use_container_width=True
+    gerar_evt = st.button("🚀 GERAR ESTUDO DE VIABILIDADE", use_container_width=True)
+    
+    if st.button("🗑️ LIMPAR PESQUISA", use_container_width=True):
+        st.session_state.clique = None
+        st.rerun()
+
+# --- RESULTADO DO EVT ---
+if gerar_evt:
+    if not st.session_state.clique:
+        st.error("📍 Por favor, clique em um lote no mapa primeiro.")
+    else:
+        ponto = Point(st.session_state.clique[1], st.session_state.clique[0])
+        zona_clicada = "Desconhecida"
+        if root is not None:
+            namespaces = {'kml': 'http://www.opengis.net/kml/2.2'}
+            for pm in root.findall('.//kml:Placemark', namespaces):
+                poly = pm.find('.//kml:Polygon', namespaces)
+                if poly is not None:
+                    coords_text = poly.find('.//kml:coordinates', namespaces).text.strip().split()
+                    coords = [tuple(map(float, c.split(',')[:2])) for c in coords_text]
+                    if Polygon(coords).contains(ponto):
+                        zona_clicada = pm.find('kml:name', namespaces).text
+                        break
+
+        to_calc = (area_c / pavs) / area_t
+        ca_calc = area_c / area_t
+        limites_zonas = {
+            "ZAP": {"TO": 0.70, "CA": 1.0, "TP": 0.10},
+            "ZAM": {"TO": 0.60, "CA": 1.0, "TP": 0.1
