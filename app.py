@@ -25,11 +25,15 @@ root = carregar_dados_kmz()
 # --- SIDEBAR: ENTRADA DE DADOS ---
 with st.sidebar:
     st.header("📋 Dados do Projeto")
-    tipo_uso = st.selectbox("Tipo de Uso", ["Residencial Unifamiliar", "Residencial Multifamiliar", "Comércio", "Serviço"])
+    tipo_uso = st.selectbox("Tipo de Uso", 
+                            ["Residencial Unifamiliar", "Residencial Multifamiliar", 
+                             "Comércio", "Serviço", "Indústria"])
     
     col_dim1, col_dim2 = st.columns(2)
     testada = col_dim1.number_input("Testada (m)", min_value=1.0, value=10.0)
     profundidade = col_dim2.number_input("Profundidade (m)", min_value=1.0, value=25.0)
+    
+    config_lote = st.radio("Configuração do Lote", ["Meio de Quadra", "Esquina"])
     
     area_terreno = testada * profundidade
     area_const_total = st.number_input("Área Construída Total (m²)", min_value=1.0, value=150.0)
@@ -40,7 +44,8 @@ with st.sidebar:
 # --- MAPA ---
 st.subheader("\"lote\"")
 m = folium.Map(location=[-3.6890, -40.3480], zoom_start=15)
-folium.TileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', attr='Google', name='Google Satellite').add_to(m)
+folium.TileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
+                attr='Google Satellite', name='Google Satellite').add_to(m)
 
 if 'clique' not in st.session_state: st.session_state.clique = None
 if st.session_state.clique:
@@ -54,7 +59,7 @@ if out and out.get("last_clicked"):
         st.session_state.clique = pos
         st.rerun()
 
-# --- LÓGICA DE CÁLCULO ---
+# --- LÓGICA DE CÁLCULO (LEIS 90/91/92 SOBRAL) ---
 if st.session_state.clique:
     ponto = Point(st.session_state.clique[1], st.session_state.clique[0])
     zona = "Zona não encontrada"
@@ -74,7 +79,7 @@ if st.session_state.clique:
     
     tab1, tab2, tab3, tab4 = st.tabs(["🏗️ Índices", "📏 Recuos", "🚽 Sanitário", "🚗 Vagas"])
     
-    # Parâmetros oficiais de Sobral (Exemplos para ajuste)
+    # Parâmetros oficiais de Sobral (Exemplos ZAP, ZAM, ZCR)
     params = {
         "ZAP": {"TO": 0.7, "CA": 2.0, "TP": 0.15},
         "ZAM": {"TO": 0.6, "CA": 1.5, "TP": 0.20},
@@ -85,28 +90,41 @@ if st.session_state.clique:
     with tab1:
         to_calc = (area_const_total / num_pavimentos) / area_terreno
         ca_calc = area_const_total / area_terreno
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Taxa Ocupação", f"{to_calc*100:.1f}%", f"Limite: {p['TO']*100}%")
-        c2.metric("C.A. Atual", f"{ca_calc:.2f}", f"Limite: {p['CA']}")
-        c3.metric("Permeabilidade", f"{p['TP']*100}%", "Mínimo")
+        st.metric("Taxa Ocupação", f"{to_calc*100:.1f}%", f"Limite: {p['TO']*100}%")
+        st.metric("C.A. Atual", f"{ca_calc:.2f}", f"Limite: {p['CA']}")
+        st.metric("Permeabilidade", f"{p['TP']*100}%", "Mínimo")
 
     with tab2:
-        recuo_f = 3.0 if num_pavimentos < 3 else 5.0
-        st.write(f"**Recuo Frontal:** {recuo_f}m")
-        st.write(f"**Laterais/Fundos:** 1.50m (para até 2 pavimentos)")
+        st.write("**Parâmetros de Afastamento (LC 90):**")
+        st.write("- **Aberturas:** Mínimo de 1,50m das divisas (Art. 107).")
+        st.write("- **Subsolo:** Recuo de 1,50m de todas as divisas (Art. 70).")
 
     with tab3:
-        # Lógica simplificada de sanitários
-        vasos = math.ceil(area_const_total / 100) if "Comércio" in tipo_uso else 1
-        st.write(f"**Vasos Sanitários:** {vasos} unidade(s)")
-        st.write(f"**Lavatórios:** {vasos} unidade(s)")
+        st.write("**Instalações Sanitárias (Anexo III):**")
+        if "Residencial" not in tipo_uso:
+            st.write("- Mínimo de 1 sanitário a cada 50m de percurso.")
+            st.write("- Separação por sexo obrigatória p/ público > 20 pessoas.")
+        else:
+            st.write("- Mínimo de 1 banheiro completo por unidade.")
 
     with tab4:
-        # Lógica de vagas (1 para cada 50m² no comércio, 1 por unidade no residencial)
-        vagas = math.ceil(area_const_total / 50) if "Comércio" in tipo_uso else 1
-        st.write(f"**Vagas de Estacionamento:** {vagas} vaga(s)")
-        st.write(f"**Bicicletário:** {math.ceil(vagas/4)} vaga(s)")
+        st.subheader("Estacionamento")
+        if "Multifamiliar" in tipo_uso:
+            vagas = math.floor(area_const_total / 65) # Média p/ unidades
+            st.write(f"- **Vagas de Carro:** {max(1, vagas)} vaga(s).")
+        elif tipo_uso in ["Comércio", "Serviço"]:
+            if area_const_total <= 100:
+                st.success("- **Isento de Vagas** (Área < 100m² em via local).")
+                vagas = 0
+            else:
+                vagas = math.ceil(area_const_total / 50)
+                st.write(f"- **Vagas de Carro:** {vagas} vaga(s).")
+        else:
+            vagas = 1
+            st.write("- **Vagas de Carro:** 1 vaga mínima.")
+        
+        bicis = max(5, math.ceil(vagas * 0.1)) if vagas > 0 else 0
+        st.write(f"- **Bicicletário:** {bicis} vaga(s) (Mínimo legal).")
 
 else:
-    st.info("👈 Insira os dados na lateral e clique no lote para analisar.")
+    st.info("👈 Preencha os dados e clique no mapa.")
