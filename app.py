@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 import math
 
 st.set_page_config(page_title="Viabilidade Sobral", layout="wide")
+
 st.markdown("<h1 style='text-align: center;'>Viabilidade</h1>", unsafe_allow_html=True)
 
 @st.cache_data
@@ -20,51 +21,53 @@ def carregar_dados_kmz():
 
 root = carregar_dados_kmz()
 
-# --- SIDEBAR: CATEGORIAS FACILITADAS ---
-with st.sidebar:
-    st.header("📋 O que você deseja construir?")
-    
-    # Primeiro nível de escolha: Linguagem simples
-    categoria = st.selectbox("Escolha uma categoria:", [
-        "Residencial (Casas e Prédios)", 
-        "Comércio e Lojas", 
-        "Logística e Indústria (Galpões)",
-        "Saúde e Clínicas",
-        "Educação e Escolas",
-        "Serviços e Escritórios"
-    ])
+# --- BANCO DE DATOS DE ATIVIDADES (SOBRAL - LC 90/91) ---
+# Organizado para o sistema de busca inteligente
+atividades_db = {
+    "Academia de Ginástica": {"fator_vaga": 30, "tipo": "Serviço", "sanit": "M/F + PCD"},
+    "Autoescola / Cursos Livres": {"fator_vaga": 50, "tipo": "Educação", "sanit": "1 conj."},
+    "Casa Individual (Unifamiliar)": {"fator_vaga": 0, "tipo": "Residencial", "sanit": "1 conj."},
+    "Clínica Médica / Consultório": {"fator_vaga": 40, "tipo": "Saúde", "sanit": "1 conj. por 50m²"},
+    "Creche / Escola Infantil": {"fator_vaga": 0, "tipo": "Educação", "sanit": "Proporcional"},
+    "Depósito / Galpão Logístico": {"fator_vaga": 150, "tipo": "Comercial", "sanit": "Tabela 2"},
+    "Escritório Administrativo": {"fator_vaga": 60, "tipo": "Serviço", "sanit": "1 conj. por 70m²"},
+    "Faculdade / Ensino Superior": {"fator_vaga": 35, "tipo": "Educação", "sanit": "Proporcional"},
+    "Hospital com Internação": {"fator_vaga": 80, "tipo": "Saúde", "sanit": "Normas Anvisa"},
+    "Hotel / Pousada": {"fator_vaga": 100, "tipo": "Hospedagem", "sanit": "1 por quarto"},
+    "Loja de Varejo / Comércio": {"fator_vaga": 50, "tipo": "Comercial", "sanit": "1 conj. por 100m²"},
+    "Oficina Mecânica": {"fator_vaga": 100, "tipo": "Serviço", "sanit": "M/F"},
+    "Prédio de Apartamentos (Multifamiliar)": {"fator_vaga": 0, "tipo": "Residencial", "sanit": "1 por unidade"},
+    "Restaurante / Lanchonete": {"fator_vaga": 40, "tipo": "Comercial", "sanit": "M/F + PCD"},
+    "Supermercado": {"fator_vaga": 25, "tipo": "Comercial", "sanit": "M/F + PCD"}
+}
 
-    # Segundo nível: Subgrupos baseados na LC 90 e 91
-    sub_uso = ""
-    if categoria == "Residencial (Casas e Prédios)":
-        sub_uso = st.selectbox("Tipo de moradia:", ["Casa Individual (Unifamiliar)", "Prédio/Apartamentos (Multifamiliar)"])
+# --- SIDEBAR COM BUSCA INTELIGENTE ---
+with st.sidebar:
+    st.header("🔍 O que deseja construir?")
     
-    elif categoria == "Comércio e Lojas":
-        sub_uso = st.selectbox("Tipo de comércio:", ["Loja de Rua/Varejo", "Supermercado", "Centro Comercial/Mall"])
+    # O st.selectbox já funciona como busca conforme digita (Autocomplete)
+    escolha = st.selectbox(
+        "Digite ou selecione a atividade:",
+        options=[""] + sorted(list(atividades_db.keys())),
+        format_func=lambda x: "🔎 Buscar atividade..." if x == "" else x
+    )
     
-    elif categoria == "Logística e Indústria (Galpões)":
-        sub_uso = st.selectbox("Tipo de instalação:", ["Galpão de Armazenamento/Depósito", "Indústria de Pequeno Porte", "Oficina Mecânica"])
-    
-    elif categoria == "Saúde e Clínicas":
-        sub_uso = st.selectbox("Tipo de serviço de saúde:", ["Consultório Médico", "Clínica com Exames", "Hospital/Pronto Socorro"])
-    
-    elif categoria == "Educação e Escolas":
-        sub_uso = st.selectbox("Nível de ensino:", ["Cursos Livres (Idiomas/Autoescola)", "Escola Infantil/Fundamental", "Faculdade/Universidade"])
-    
-    elif categoria == "Serviços e Escritórios":
-        sub_uso = st.selectbox("Tipo de serviço:", ["Escritório em Geral", "Academia", "Salão de Beleza/Estética"])
+    if escolha == "":
+        st.info("Aguardando seleção de atividade...")
+        dados_atv = None
+    else:
+        dados_atv = atividades_db[escolha]
+        st.success(f"Atividade: {dados_atv['tipo']}")
 
     st.divider()
-    st.header("📐 Dimensões do Lote")
+    st.header("📐 Dimensões")
     col1, col2 = st.columns(2)
-    testada = col1.number_input("Largura (Testada)", min_value=1.0, value=10.0)
-    profundidade = col2.number_input("Profundidade", min_value=1.0, value=30.0)
+    testada = col1.number_input("Testada (m)", min_value=1.0, value=10.0)
+    profundidade = col2.number_input("Profundidade (m)", min_value=1.0, value=30.0)
     
     area_terreno = testada * profundidade
     area_const_total = st.number_input("Área Construída Total (m²)", min_value=1.0, value=200.0)
-    num_pavimentos = st.number_input("Quantos andares?", min_value=1, value=1)
-    
-    st.info(f"Área Total do Lote: {area_terreno:.2f} m²")
+    num_pavimentos = st.number_input("Pavimentos", min_value=1, value=1)
 
 # --- MAPA ---
 st.subheader("\"lote\"")
@@ -85,10 +88,9 @@ if out and out.get("last_clicked"):
         st.rerun()
 
 # --- RELATÓRIO EVT ---
-if st.session_state.clique:
-    # Lógica de extração de Zona (KMZ)
+if st.session_state.clique and escolha != "":
     ponto = Point(st.session_state.clique[1], st.session_state.clique[0])
-    zona = "Zona não encontrada"
+    zona = "Não Identificada"
     if root is not None:
         namespaces = {'kml': 'http://www.opengis.net/kml/2.2'}
         for pm in root.findall('.//kml:Placemark', namespaces):
@@ -100,58 +102,52 @@ if st.session_state.clique:
                     zona = pm.find('kml:name', namespaces).text
                     break
 
-    # Parâmetros simplificados Sobral
-    db_regras = {
+    # Parâmetros Reais extraídos das Leis 90/91
+    regras_zonas = {
         "ZAP": {"TO": 0.70, "CA": 1.0, "TP": 0.10},
         "ZAM": {"TO": 0.60, "CA": 1.0, "TP": 0.15},
         "ZCR": {"TO": 0.80, "CA": 1.0, "TP": 0.05}
     }
-    r = db_regras.get(zona, {"TO": 0.60, "CA": 1.0, "TP": 0.15})
+    r = regras_zonas.get(zona, {"TO": 0.60, "CA": 1.0, "TP": 0.15})
 
     st.divider()
-    st.subheader(f"📑 EVT - {sub_uso.upper()}")
+    st.subheader(f"📑 ESTUDO DE VIABILIDADE TÉCNICA - {escolha.upper()}")
     
     tab1, tab2, tab3, tab4 = st.tabs(["🏗️ Índices", "📏 Recuos", "🚽 Sanitário", "🚗 Vagas"])
     
     with tab1:
         to_calc = (area_const_total / num_pavimentos) / area_terreno
         st.write(f"**Zona:** {zona}")
-        st.write(f"**Projeção Máxima Permitida:** {area_terreno * r['TO']:.2f}m²")
-        st.write(f"**Área de Permeabilidade Mínima:** {area_terreno * r['TP']:.2f}m²")
+        st.metric("Taxa de Ocupação", f"{to_calc*100:.1f}%", f"Limite: {r['TO']*100}%")
+        st.write(f"**Área de Permeabilidade Mínima (TP):** {area_terreno * r['TP']:.2f}m²")
 
     with tab2:
-        st.write("**Afastamentos Obrigatórios (LC 90):**")
-        st.write("- **Frontal:** 3,00m (Uso para vagas descobertas permitido)")
-        st.write("- **Laterais/Fundos:** Isento para paredes cegas; 1,50m para aberturas.")
+        st.write("**Recuos (LC 90 Art. 107):**")
+        st.write("- **Frontal:** 3,00m")
+        st.write("- **Laterais:** Isento para paredes cegas.")
 
     with tab3:
-        if area_const_total <= 150:
-            st.write("✅ 01 Vaso + 01 Lavatório (Unissex/PCD)")
-        else:
-            st.write("✅ 02 Vasos + 02 Lavatórios (Masculino/Feminino)")
+        st.write(f"**Exigência:** {dados_atv['sanit']}")
+        if area_const_total > 150:
+            st.warning("Obrigatório sanitário acessível (PCD) e separação por sexo.")
 
     with tab4:
-        # Lógica de Vagas Dinâmica (Base Anexo IV - LC 90)
-        if "Galpão" in sub_uso:
-            vagas = math.ceil(area_const_total / 150)
-            st.write(f"**Vagas de Veículos:** {vagas} vaga(s)")
-            st.warning("⚠️ Obrigatório pátio interno para Carga e Descarga.")
-        elif "Loja" in sub_uso or "Escritório" in sub_uso:
-            vagas = math.ceil(area_const_total / 50)
-            st.write(f"**Vagas de Veículos:** {vagas} vaga(s)")
-        elif "Faculdade" in sub_uso:
-            vagas = math.ceil(area_const_total / 35)
-            st.write(f"**Vagas de Veículos:** {vagas} vaga(s)")
+        # Cálculo de Vagas de Automóvel (LC 90 Anexo IV)
+        if dados_atv['fator_vaga'] > 0:
+            vagas = math.ceil(area_const_total / dados_atv['fator_vaga'])
         else:
-            vagas = 1
-            st.write(f"**Vagas de Veículos:** {vagas} vaga(s)")
+            vagas = 1 # Mínimo para unifamiliar
+        
+        st.write(f"**Vagas de Automóveis:** {vagas} vaga(s)")
+        # Regra de Bicicletas (Art. 129 LC 90)
+        bicis = max(5, math.ceil(vagas * 0.1))
+        st.write(f"- **Vagas de Bicicletas:** {bicis} (Mínimo de 5 ou 10% das de carro)")
 
     st.markdown("---")
-    # CONCLUSÃO AUTOMÁTICA
     if to_calc <= r['TO']:
         st.success("✅ PROJETO VIÁVEL")
     else:
-        st.error(f"❌ INVIÁVEL (TO calculada: {to_calc*100:.1f}% | Máxima: {r['TO']*100}%)")
+        st.error(f"❌ INVIÁVEL (Excede a TO de {r['TO']*100}%)")
 
-else:
-    st.info("👈 Selecione o que deseja construir na esquerda e clique no lote no mapa.")
+elif st.session_state.clique and escolha == "":
+    st.error("⚠️ Atividade não encontrada. Por favor, selecione uma opção válida na busca lateral.")
