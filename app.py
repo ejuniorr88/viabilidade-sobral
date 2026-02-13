@@ -10,6 +10,10 @@ import math
 st.set_page_config(page_title="Viabilidade Sobral", layout="wide")
 st.markdown("<h1 style='text-align: center;'>Viabilidade</h1>", unsafe_allow_html=True)
 
+# Inicialização das variáveis de estado (Memória do App)
+if 'clique' not in st.session_state: st.session_state.clique = None
+if 'relatorio' not in st.session_state: st.session_state.relatorio = None
+
 @st.cache_data
 def carregar_dados_kmz():
     try:
@@ -38,22 +42,17 @@ atividades_db = {
 with st.sidebar:
     st.header("📋 1. Escolha por Categoria")
     cat = st.selectbox("Categoria:", ["Residencial", "Comercial", "Saúde/Educação"])
-    
-    # Mapeamento simples para evitar erros de sintaxe em linhas longas
     subs = {
         "Residencial": ["Casa Individual (Unifamiliar)", "Prédio (Multifamiliar)"],
         "Comercial": ["Loja / Comércio", "Farmácia", "Depósito / Galpão", "Supermercado"],
         "Saúde/Educação": ["Clínica Médica", "Hospital / Maternidade", "Faculdade / Superior"]
     }
     escolha_quadro = st.selectbox("Tipo de uso (Menu):", subs[cat])
-
     st.markdown("---")
     st.header("🔍 2. Busca por Digitação")
     escolha_busca = st.selectbox("Ou digite o uso:", [""] + sorted(list(atividades_db.keys())))
-
     atv_final = escolha_busca if escolha_busca != "" else escolha_quadro
     dados_atv = atividades_db[atv_final]
-
     st.divider()
     st.header("📐 3. Dimensões")
     testada = st.number_input("Testada (m)", value=10.0)
@@ -67,21 +66,23 @@ st.subheader("\"lote\"")
 m = folium.Map(location=[-3.6890, -40.3480], zoom_start=15)
 folium.TileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', attr='Google Satellite', name='Google Satellite').add_to(m)
 
-if 'clique' not in st.session_state: st.session_state.clique = None
 if st.session_state.clique:
     folium.Marker(st.session_state.clique, icon=folium.Icon(color="red")).add_to(m)
 
 out = st_folium(m, width="100%", height=400)
 if out and out.get("last_clicked"):
-    st.session_state.clique = [out["last_clicked"]["lat"], out["last_clicked"]["lng"]]
-    st.rerun()
+    novo_clique = [out["last_clicked"]["lat"], out["last_clicked"]["lng"]]
+    if novo_clique != st.session_state.clique:
+        st.session_state.clique = novo_clique
+        st.rerun()
 
 # --- BOTÕES ---
 st.markdown("---")
 c_btn1, c_btn2, c_btn3 = st.columns([1, 2, 1])
 with c_btn2:
     if st.button("🚀 GERAR ESTUDO DE VIABILIDADE", use_container_width=True):
-        if not st.session_state.clique: st.error("📍 Clique no mapa!")
+        if not st.session_state.clique:
+            st.error("📍 Clique no mapa primeiro!")
         else:
             ponto = Point(st.session_state.clique[1], st.session_state.clique[0])
             zona = "Desconhecida"
@@ -94,38 +95,48 @@ with c_btn2:
                         if Polygon(coords).contains(ponto):
                             zona = pm.find('{http://www.opengis.net/kml/2.2}name').text
                             break
-
+            
+            # Guardamos os dados do relatório no session_state para não sumirem
             to_calc = (area_c / pavs) / area_t
             limites = {"ZAP": 0.7, "ZAM": 0.6, "ZCR": 0.8}
             lim_to = limites.get(zona, 0.6)
             permitido = any(z in zona for z in dados_atv["zonas"])
-
-            st.divider()
-            st.subheader(f"📑 ESTUDO DE VIABILIDADE: {atv_final.upper()}")
             
-            if permitido: st.success(f"✔️ PERMITIDO na zona {zona}.")
-            else: st.error(f"❌ NÃO PREVISTO na zona {zona}.")
-
-            
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.info("### 🏗️ ÍNDICES")
-                st.write(f"**TO:** {to_calc*100:.1f}%")
-                st.write(f"**Status:** {'✅ OK' if to_calc <= lim_to else '⚠️ EXCEDE'}")
-            with col2:
-                st.info("### 📏 RECUOS")
-                st.write("**Frontal:** 3m | **Lateral/Fundo:** 1,5m")
-            
-            col3, col4 = st.columns(2)
-            with col3:
-                st.info("### 🚽 SANITÁRIO")
-                st.write(f"**Mínimo:** {max(1, math.ceil(area_c/dados_atv['s']))} conj.")
-            with col4:
-                st.info("### 🚗 VAGAS")
-                v = max(1, math.ceil(area_c/dados_atv['v']))
-                st.write(f"**Carros:** {v} | **Bicicletas:** {max(5, math.ceil(v*0.1))}")
+            st.session_state.relatorio = {
+                "atv": atv_final, "zona": zona, "to": to_calc, "lim": lim_to,
+                "perm": permitido, "area_c": area_c, "dados": dados_atv
+            }
 
     if st.button("🗑️ LIMPAR PESQUISA", use_container_width=True):
         st.session_state.clique = None
+        st.session_state.relatorio = None
         st.rerun()
+
+# --- EXIBIÇÃO DO RELATÓRIO (SÓ ATUALIZA NO BOTÃO) ---
+if st.session_state.relatorio:
+    r = st.session_state.relatorio
+    st.divider()
+    st.subheader(f"📑 ESTUDO DE VIABILIDADE: {r['atv'].upper()}")
+    
+    if r['perm']: st.success(f"✔️ PERMITIDO na zona {r['zona']}.")
+    else: st.error(f"❌ NÃO PREVISTO na zona {r['zona']}.")
+
+    
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info("### 🏗️ ÍNDICES")
+        st.write(f"**TO:** {r['to']*100:.1f}%")
+        st.write(f"**Status:** {'✅ OK' if r['to'] <= r['lim'] else '⚠️ EXCEDE'}")
+    with col2:
+        st.info("### 📏 RECUOS")
+        st.write("**Frontal:** 3m | **Lateral/Fundo:** 1,5m")
+    
+    col3, col4 = st.columns(2)
+    with col3:
+        st.info("### 🚽 SANITÁRIO")
+        st.write(f"**Mínimo:** {max(1, math.ceil(r['area_c']/r['dados']['s']))} conj.")
+    with col4:
+        st.info("### 🚗 VAGAS")
+        v = max(1, math.ceil(r['area_c']/r['dados']['v']))
+        st.write(f"**Carros:** {v} | **Bicicletas:** {max(5, math.ceil(v*0.1))}")
