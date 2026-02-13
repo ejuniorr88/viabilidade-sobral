@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 st.set_page_config(page_title="Viabilidade Sobral", layout="wide")
 
 # Substituído conforme solicitado
-st.markdown("<h1 style='text-align: center;'>Consultor de Viabilidade Sobral \"viabilidade\"</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>Viabilidade\"</h1>", unsafe_allow_html=True)
 
 @st.cache_data
 def carregar_dados_kmz():
