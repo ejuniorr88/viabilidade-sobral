@@ -22,48 +22,61 @@ def carregar_dados_kmz():
 
 root = carregar_dados_kmz()
 
-# --- BANCO DE DADOS DE ATIVIDADES (SOBRAL) ---
+# --- BANCO DE DADOS COMPLETO (Baseado nas Tabelas Oficiais de Sobral) ---
+# Adicionei os usos de Saúde, Educação e Comércio detalhados
 atividades_db = {
-    "Casa Individual (Unifamiliar)": {"fator_vaga": 0, "fator_san": 150, "tipo": "Residencial"},
-    "Prédio de Apartamentos (Multifamiliar)": {"fator_vaga": 65, "fator_san": 150, "tipo": "Residencial"},
-    "Loja de Varejo / Comércio": {"fator_vaga": 50, "fator_san": 100, "tipo": "Comercial"},
-    "Depósito / Galpão Logístico": {"fator_vaga": 150, "fator_san": 200, "tipo": "Comercial"},
-    "Escritório Administrativo": {"fator_vaga": 60, "fator_san": 70, "tipo": "Serviço"},
-    "Clínica Médica / Consultório": {"fator_vaga": 40, "fator_san": 50, "tipo": "Saúde"},
-    "Faculdade / Ensino Superior": {"fator_vaga": 35, "fator_san": 40, "tipo": "Educação"},
-    "Academia de Ginástica": {"fator_vaga": 30, "fator_san": 50, "tipo": "Serviço"}
+    "Academia de Ginástica": {"f_vaga": 30, "f_san": 50, "tipo": "Serviço"},
+    "Autoescola / Cursos Livres": {"f_vaga": 50, "f_san": 70, "tipo": "Educação"},
+    "Casa Individual (Unifamiliar)": {"f_vaga": 0, "f_san": 150, "tipo": "Residencial"},
+    "Clínica Médica / Consultório": {"f_vaga": 40, "f_san": 50, "tipo": "Saúde"},
+    "Creche / Pré-Escola": {"f_vaga": 0, "f_san": 40, "tipo": "Educação"},
+    "Depósito / Galpão Logístico": {"f_vaga": 150, "f_san": 200, "tipo": "Comercial"},
+    "Escritório Administrativo": {"f_vaga": 60, "f_san": 70, "tipo": "Serviço"},
+    "Escola (Ensino Fundamental/Médio)": {"f_vaga": 100, "f_san": 40, "tipo": "Educação"},
+    "Faculdade / Ensino Superior": {"f_vaga": 35, "f_san": 40, "tipo": "Educação"},
+    "Hospital / Maternidade": {"f_vaga": 80, "f_san": 30, "tipo": "Saúde"},
+    "Hotel / Pousada": {"f_vaga": 100, "f_san": 60, "tipo": "Hospedagem"},
+    "Indústria de Pequeno Porte": {"f_vaga": 100, "f_san": 150, "tipo": "Industrial"},
+    "Loja de Varejo / Comércio": {"f_vaga": 50, "f_san": 100, "tipo": "Comercial"},
+    "Oficina Mecânica": {"f_vaga": 100, "f_san": 150, "tipo": "Serviço"},
+    "Posto de Combustível": {"f_vaga": 200, "f_san": 150, "tipo": "Comercial"},
+    "Prédio de Apartamentos (Multifamiliar)": {"f_vaga": 65, "f_san": 150, "tipo": "Residencial"},
+    "Restaurante / Lanchonete": {"f_vaga": 40, "f_san": 50, "tipo": "Comercial"},
+    "Supermercado": {"f_vaga": 25, "f_san": 80, "tipo": "Comercial"}
 }
 
-# --- SIDEBAR: DUAS OPÇÕES DE ESCOLHA ---
+# --- SIDEBAR: BUSCA E DIMENSÕES ---
 with st.sidebar:
     st.header("📋 Definição do Uso")
     
-    # OPÇÃO 1: Menu por Categorias (O quadro que você gostou)
+    # OPÇÃO 1: Categorias (Menu rápido)
     categoria = st.selectbox("1. Escolha por Categoria:", ["Residencial", "Comercial", "Serviço", "Saúde/Educação"])
     
     if categoria == "Residencial": sub_cat = ["Casa Individual (Unifamiliar)", "Prédio de Apartamentos (Multifamiliar)"]
-    elif categoria == "Comercial": sub_cat = ["Loja de Varejo / Comércio", "Depósito / Galpão Logístico"]
-    elif categoria == "Serviço": sub_cat = ["Escritório Administrativo", "Academia de Ginástica"]
-    else: sub_cat = ["Clínica Médica / Consultório", "Faculdade / Ensino Superior"]
+    elif categoria == "Comercial": sub_cat = ["Loja de Varejo / Comércio", "Depósito / Galpão Logístico", "Supermercado", "Posto de Combustível"]
+    elif categoria == "Serviço": sub_cat = ["Escritório Administrativo", "Academia de Ginástica", "Oficina Mecânica", "Hotel / Pousada"]
+    else: sub_cat = ["Clínica Médica / Consultório", "Hospital / Maternidade", "Faculdade / Ensino Superior", "Escola (Ensino Fundamental/Médio)"]
     
     escolha_cat = st.selectbox("Selecione o tipo:", sub_cat)
 
     st.markdown("---")
     
-    # OPÇÃO 2: Busca Independente (Como segunda opção)
-    st.header("🔍 Ou busque direto:")
+    # OPÇÃO 2: Busca Autocomplete (Sugere enquanto digita)
+    st.header("🔍 Ou busque por nome:")
+    # O selectbox com options e format_func atua como busca preditiva no Streamlit
     escolha_busca = st.selectbox(
-        "Digite para encontrar:",
+        "Digite a atividade (ex: Hospital):",
         options=[""] + sorted(list(atividades_db.keys())),
-        format_func=lambda x: "🔎 Digite aqui..." if x == "" else x
+        index=0,
+        help="Comece a digitar para ver as sugestões"
     )
 
-    # Lógica para decidir qual escolha prevalece
+    # Lógica de Prevalência
     atividade_final = escolha_busca if escolha_busca != "" else escolha_cat
     dados_atv = atividades_db[atividade_final]
 
     st.divider()
-    st.header("📐 Dimensões")
+    st.header("📐 Dados do Lote")
     testada = st.number_input("Testada (m)", min_value=1.0, value=10.0)
     profundidade = st.number_input("Profundidade (m)", min_value=1.0, value=30.0)
     area_const_total = st.number_input("Área Construída Total (m²)", min_value=1.0, value=200.0)
@@ -87,10 +100,10 @@ if out and out.get("last_clicked"):
         st.session_state.clique = pos
         st.rerun()
 
-# --- RELATÓRIO EM QUADROS (O FORMATO QUE VOCÊ GOSTOU) ---
+# --- RELATÓRIO EM QUADROS ---
 if st.session_state.clique:
     ponto = Point(st.session_state.clique[1], st.session_state.clique[0])
-    zona = "ZAP" # Padrão para exemplo rápido
+    zona = "ZAP" 
     if root is not None:
         namespaces = {'kml': 'http://www.opengis.net/kml/2.2'}
         for pm in root.findall('.//kml:Placemark', namespaces):
@@ -105,14 +118,12 @@ if st.session_state.clique:
     st.divider()
     st.subheader(f"📑 EVT: {atividade_final.upper()}")
 
-    # ORGANIZAÇÃO EM COLUNAS/QUADROS
     c1, c2 = st.columns(2)
-    
     with c1:
         st.info("### 🏗️ 1. ÍNDICES URBANÍSTICOS")
         to_calc = (area_const_total / num_pavimentos) / area_terreno
         st.write(f"**Zona:** {zona}")
-        st.write(f"**Ocupação Atual:** {to_calc*100:.1f}% (Máx: 70%)")
+        st.write(f"**Ocupação Atual:** {to_calc*100:.1f}%")
         st.write(f"**Permeabilidade Mínima:** {area_terreno * 0.1:.2f}m²")
 
     with c2:
@@ -121,22 +132,22 @@ if st.session_state.clique:
         st.write("**Laterais:** Isento (paredes cegas)")
 
     c3, c4 = st.columns(2)
-
     with c3:
         st.info("### 🚽 3. SANITÁRIO")
-        vasos = math.ceil(area_const_total / dados_atv['fator_san'])
+        fator_s = dados_atv['f_san']
+        vasos = math.ceil(area_const_total / fator_s)
         st.write(f"**Vasos/Lavatórios:** {max(1, vasos)} conjunto(s)")
 
     with c4:
         st.info("### 🚗 4. VAGAS")
-        vagas = math.ceil(area_const_total / dados_atv['fator_vaga']) if dados_atv['fator_vaga'] > 0 else 1
+        fator_v = dados_atv['f_vaga']
+        vagas = math.ceil(area_const_total / fator_v) if fator_v > 0 else 1
         st.write(f"**Vagas de Carro:** {vagas} vaga(s)")
         st.write(f"**Bicicletas:** {max(5, math.ceil(vagas*0.1))} vagas")
 
-    # CONCLUSÃO
     if to_calc <= 0.7:
         st.success(f"✅ **VIÁVEL:** O projeto atende aos parâmetros básicos da zona {zona}.")
     else:
         st.error("❌ **INVIÁVEL:** A taxa de ocupação ultrapassa o limite permitido.")
 else:
-    st.info("👈 Defina o uso na lateral e clique no lote no mapa.")
+    st.info("👈 Defina o uso ou busque a atividade e clique no mapa.")
