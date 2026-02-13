@@ -10,7 +10,6 @@ import math
 st.set_page_config(page_title="Viabilidade Sobral", layout="wide")
 st.markdown("<h1 style='text-align: center;'>Viabilidade Urbana</h1>", unsafe_allow_html=True)
 
-# Memória de Sessão para persistência
 if 'clique' not in st.session_state: st.session_state.clique = None
 if 'relatorio' not in st.session_state: st.session_state.relatorio = None
 
@@ -24,42 +23,48 @@ def carregar_dados_kmz():
 
 root = carregar_dados_kmz()
 
-# --- BANCO DE DADOS TÉCNICO ---
+# --- BANCO DE DADOS FIEL ÀS TABELAS (COM SINÔNIMOS PARA BUSCA) ---
 atividades_db = {
     "Casa Individual (Unifamiliar)": {"v": 1, "s": 150, "zs": ["ZAP", "ZAM", "ZPR", "ZCR", "ZPH"]},
-    "Prédio de Apartamentos": {"v": 65, "s": 150, "zs": ["ZAP", "ZAM", "ZCR"]},
-    "Loja / Comércio": {"v": 50, "s": 100, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]},
+    "Prédio de Apartamentos (Multifamiliar)": {"v": 65, "s": 150, "zs": ["ZAP", "ZAM", "ZCR"]},
+    "Loja / Comércio Varejista": {"v": 50, "s": 100, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]},
     "Farmácia": {"v": 50, "s": 100, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]},
     "Depósito / Galpão": {"v": 150, "s": 200, "zs": ["ZAP", "ZAM", "ZDE", "ZIND"]},
     "Supermercado": {"v": 25, "s": 80, "zs": ["ZAP", "ZAM", "ZCR"]},
-    "Clínica Médica": {"v": 40, "s": 50, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]},
-    "Hospital": {"v": 80, "s": 30, "zs": ["ZAP", "ZAM", "ZCR"]},
-    "Escritório": {"v": 60, "s": 70, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]},
-    "Faculdade": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]}
+    "Clínica Médica / Consultório": {"v": 40, "s": 50, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]},
+    "Hospital / Maternidade": {"v": 80, "s": 30, "zs": ["ZAP", "ZAM", "ZCR"]},
+    "Escola / Ensino Fundamental": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
+    "Faculdade / Ensino Superior": {"v": 35, "s": 40, "zs": ["ZAP", "ZAM", "ZCR"]},
+    "Escritório / Prestação de Serviço": {"v": 60, "s": 70, "zs": ["ZAP", "ZAM", "ZCR", "ZPR"]}
 }
 
-# --- SIDEBAR: CATEGORIAS E BUSCA ---
+# --- SIDEBAR: ESTRUTURA FIXA (NÃO MUDAR) ---
 with st.sidebar:
     st.header("📋 1. Escolha o Uso")
-    cat = st.selectbox("Categoria:", ["Residencial", "Comercial", "Saúde/Educação"])
+    cat = st.selectbox("Selecione por Categoria:", ["Residencial", "Comercial", "Serviço", "Saúde/Educação"])
     subs = {
-        "Residencial": ["Casa Individual (Unifamiliar)", "Prédio de Apartamentos"],
-        "Comercial": ["Loja / Comércio", "Farmácia", "Depósito / Galpão", "Supermercado"],
-        "Saúde/Educação": ["Clínica Médica", "Hospital", "Escritório", "Faculdade"]
+        "Residencial": ["Casa Individual (Unifamiliar)", "Prédio de Apartamentos (Multifamiliar)"],
+        "Comercial": ["Loja / Comércio Varejista", "Farmácia", "Depósito / Galpão", "Supermercado"],
+        "Serviço": ["Escritório / Prestação de Serviço"],
+        "Saúde/Educação": ["Clínica Médica / Consultório", "Hospital / Maternidade", "Escola / Ensino Fundamental", "Faculdade / Ensino Superior"]
     }
-    escolha_cat = st.selectbox("Opções:", subs[cat])
+    escolha_cat = st.selectbox("Opções na categoria:", subs[cat])
+    
     st.markdown("---")
     st.header("🔍 2. Busca Direta")
-    escolha_busca = st.selectbox("Pesquisar uso:", [""] + sorted(list(atividades_db.keys())))
+    escolha_busca = st.selectbox("Ou digite para pesquisar:", [""] + sorted(list(atividades_db.keys())))
+    
+    # Lógica de seleção final
     atv_final = escolha_busca if escolha_busca != "" else escolha_cat
     dados_atv = atividades_db[atv_final]
+    
     st.divider()
-    st.header("📐 3. Dados do Lote")
-    testada = st.number_input("Testada (m):", value=10.0)
+    st.header("📐 3. Dimensões do Lote")
+    testada = st.number_input("Testada / Frente (m):", value=10.0)
     profundidade = st.number_input("Profundidade (m):", value=30.0)
     esquina = st.checkbox("Lote de Esquina")
-    pavs = st.slider("Pavimentos:", 1, 12, 1)
-    area_t = testada * profundidade
+    pavs = st.slider("Pavimentos Planejados:", 1, 12, 1)
+    area_terreno = testada * profundidade
 
 # --- MAPA ---
 st.subheader("📍 Selecione o lote no mapa:")
@@ -96,24 +101,24 @@ with c2:
             
             lims = {"ZAP": {"to": 0.7, "ca": 1.0, "tp": 0.1}, "ZAM": {"to": 0.6, "ca": 1.0, "tp": 0.15}, "ZCR": {"to": 0.8, "ca": 2.0, "tp": 0.05}}
             l = lims.get(zona, {"to": 0.6, "ca": 1.0, "tp": 0.15})
-            a_max_t, a_total_p = area_t * l['to'], area_t * l['ca']
+            a_max_t, a_total_p = area_terreno * l['to'], area_terreno * l['ca']
             
             st.session_state.relatorio = {
-                "atv": atv_final, "zona": zona, "a_t": area_t, "a_max_t": a_max_t,
+                "atv": atv_final, "zona": zona, "a_t": area_terreno, "a_max_t": a_max_t,
                 "a_total": a_total_p, "a_pav": min(a_max_t, a_total_p/pavs), "pavs": pavs,
-                "esquina": esquina, "tp": area_t * l['tp'], "perm": any(z in zona for z in dados_atv["zs"]),
+                "esquina": esquina, "tp": area_terreno * l['tp'], "perm": any(z in zona for z in dados_atv["zs"]),
                 "dados": dados_atv
             }
     if st.button("🗑️ LIMPAR TUDO", use_container_width=True):
         st.session_state.clique, st.session_state.relatorio = None, None
         st.rerun()
 
-# --- RESULTADO EM QUADROS ORIGINAIS ---
+# --- RESULTADO EM 4 QUADROS (MODELO ORIGINAL) ---
 if st.session_state.relatorio:
     r = st.session_state.relatorio
     st.divider()
     st.subheader(f"📑 ESTUDO DE VIABILIDADE: {r['atv'].upper()}")
-    if r['perm']: st.success(f"✔️ USO PERMITIDO na zona {r['zona']}.")
+    if r['perm']: st.success(f"✔️ USO ADMISSÍVEL na zona {r['zona']}.")
     else: st.error(f"❌ USO NÃO PREVISTO na zona {r['zona']}.")
 
     
@@ -126,9 +131,9 @@ if st.session_state.relatorio:
         st.write(f"**Jardim Mínimo:** {r['tp']:.2f} m²")
     with col2:
         st.info("### 📏 RECUOS")
-        f = "3,00m (Frente e Esquina)" if r['esquina'] else "3,00m (Frente)"
+        f = "3,00m (Frente e Lateral Esquina)" if r['esquina'] else "3,00m (Frente)"
         st.write(f"**Frontal:** {f}")
-        st.write("**Laterais:** 1,50m (c/ janelas)")
+        st.write("**Laterais:** 1,50m (com janelas)")
 
     col3, col4 = st.columns(2)
     with col3:
