@@ -6,7 +6,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 import math
 
-# Configuração da Página
+# 1. Configuração da Página (Sempre no topo)
 st.set_page_config(page_title="Viabilidade Sobral", layout="wide")
 
 # Título minimalista
@@ -24,50 +24,57 @@ def carregar_dados_kmz():
 
 root = carregar_dados_kmz()
 
-# --- BANCO DE DADOS FIEL ÀS TABELAS OFICIAIS (LC 90/2023) ---
-# Tabelas extraídas das Normas de Estacionamento e Sanitários
+# --- BANCO DE DADOS COMPLETO (SOBRAL LC 90/91) ---
 atividades_db = {
-    "Residencial Unifamiliar": {"v": 0, "s": 150, "desc": "1 vaga por unidade"},
-    "Residencial Multifamiliar": {"v": 65, "s": 150, "desc": "1 vaga por unidade habitacional"},
-    "Hospedagem (Hotéis e Pousadas)": {"v": 100, "s": 60, "desc": "1 vaga a cada 100m²"},
-    "Motéis": {"v": 1, "s": 60, "desc": "1 vaga por quarto"},
-    "Comércio e Serviços em Geral (Inc. Farmácias)": {"v": 50, "s": 100, "desc": "1 vaga a cada 50m²"},
-    "Supermercados e Centros Comerciais": {"v": 25, "s": 80, "desc": "1 vaga a cada 25m²"},
-    "Serviços de Saúde (Hospitais e Maternidades)": {"v": 80, "s": 30, "desc": "1 vaga a cada 80m²"},
-    "Clínicas e Laboratórios": {"v": 40, "s": 50, "desc": "1 vaga a cada 40m²"},
-    "Educação Infantil e Fundamental": {"v": 0, "s": 40, "desc": "Embarque interno obrigatório"},
-    "Educação Superior e Profissionalizante": {"v": 35, "s": 40, "desc": "1 vaga a cada 35m²"},
-    "Locais de Reunião (Igrejas e Templos)": {"v": 20, "s": 50, "desc": "1 vaga a cada 20m² de área de público"},
-    "Cinemas e Teatros": {"v": 15, "s": 30, "desc": "1 vaga a cada 15 assentos"},
-    "Clubes e Estádios": {"v": 50, "s": 100, "desc": "1 vaga a cada 50m²"},
-    "Oficinas e Postos de Serviços": {"v": 100, "s": 150, "desc": "1 vaga a cada 100m²"},
-    "Indústrias e Depósitos (Galpões)": {"v": 150, "s": 200, "desc": "1 vaga a cada 150m² + Carga/Descarga"},
+    "Casa Individual (Unifamiliar)": {"v": 0, "s": 150, "t": "Residencial"},
+    "Prédio (Multifamiliar)": {"v": 65, "s": 150, "t": "Residencial"},
+    "Loja / Comércio": {"v": 50, "s": 100, "t": "Comercial"},
+    "Farmácia": {"v": 50, "s": 100, "t": "Comercial"},
+    "Depósito / Galpão": {"v": 150, "s": 200, "t": "Comercial"},
+    "Supermercado": {"v": 25, "s": 80, "t": "Comercial"},
+    "Restaurante": {"v": 40, "s": 50, "t": "Comercial"},
+    "Escritório": {"v": 60, "s": 70, "t": "Serviço"},
+    "Academia de Ginástica": {"v": 30, "s": 50, "t": "Serviço"},
+    "Oficina Mecânica": {"v": 100, "s": 150, "t": "Serviço"},
+    "Clínica Médica": {"v": 40, "s": 50, "t": "Saúde"},
+    "Hospital / Maternidade": {"v": 80, "s": 30, "t": "Saúde"},
+    "Faculdade / Superior": {"v": 35, "s": 40, "t": "Educação"},
+    "Escola (Fund./Médio)": {"v": 100, "s": 40, "t": "Educação"},
+    "Hospedagem (Hotel/Pousada)": {"v": 100, "s": 60, "t": "Hospedagem"}
 }
 
-# --- SIDEBAR: BUSCA E DIMENSÕES ---
+# --- SIDEBAR: OS DOIS CAMPOS INDEPENDENTES ---
 with st.sidebar:
-    st.header("📋 Definição do Uso")
+    st.header("📋 1. Escolha Pré-definida")
+    cat = st.selectbox("Selecione a Categoria:", ["Residencial", "Comercial", "Serviço", "Saúde/Educação"])
     
-    # Busca independente fiel à tabela com autocomplete
+    if cat == "Residencial": sub = ["Casa Individual (Unifamiliar)", "Prédio (Multifamiliar)"]
+    elif cat == "Comercial": sub = ["Loja / Comércio", "Farmácia", "Depósito / Galpão", "Supermercado", "Restaurante"]
+    elif cat == "Serviço": sub = ["Escritório", "Academia de Ginástica", "Oficina Mecânica"]
+    else: sub = ["Clínica Médica", "Hospital / Maternidade", "Faculdade / Superior", "Escola (Fund./Médio)"]
+    
+    escolha_quadro = st.selectbox("Tipo de uso (Quadro):", sub)
+
+    st.markdown("---")
+    
+    st.header("🔍 2. Busca por Digitação")
     escolha_busca = st.selectbox(
-        "Digite ou selecione a atividade:",
+        "Digite para filtrar:",
         options=[""] + sorted(list(atividades_db.keys())),
         index=0,
-        help="Nomenclaturas oficiais conforme o Código de Ordenamento de Sobral."
+        help="Use este campo para buscar qualquer item da tabela rapidamente."
     )
 
-    if escolha_busca == "":
-        st.warning("Selecione uma atividade para gerar o relatório.")
-        dados_atv = None
-    else:
-        dados_atv = atividades_db[escolha_busca]
+    # Lógica de Independência: Se a busca estiver vazia, usa o quadro. Se algo for digitado, a busca manda.
+    atv_final = escolha_busca if escolha_busca != "" else escolha_quadro
+    dados = atividades_db[atv_final]
 
     st.divider()
-    st.header("📐 Dados do Projeto")
+    st.header("📐 Dimensões do Lote")
     testada = st.number_input("Testada (m)", min_value=1.0, value=10.0)
     profundidade = st.number_input("Profundidade (m)", min_value=1.0, value=30.0)
-    area_c = st.number_input("Área Construída Total (m²)", min_value=1.0, value=200.0)
-    pavs = st.number_input("Número de Pavimentos", min_value=1, value=1)
+    area_c = st.number_input("Área Construída (m²)", min_value=1.0, value=200.0)
+    pavs = st.number_input("Pavimentos", min_value=1, value=1)
     area_t = testada * profundidade
 
 # --- MAPA ---
@@ -86,10 +93,10 @@ if out and out.get("last_clicked"):
         st.session_state.clique = pos
         st.rerun()
 
-# --- RELATÓRIO EVT (QUADROS) ---
-if st.session_state.clique and dados_atv:
+# --- RELATÓRIO EVT (QUADROS LIMPOS) ---
+if st.session_state.clique:
     ponto = Point(st.session_state.clique[1], st.session_state.clique[0])
-    zona = "Não Identificada"
+    zona = "ZAP" 
     if root is not None:
         namespaces = {'kml': 'http://www.opengis.net/kml/2.2'}
         for pm in root.findall('.//kml:Placemark', namespaces):
@@ -102,40 +109,36 @@ if st.session_state.clique and dados_atv:
                     break
 
     st.divider()
-    st.subheader(f"📑 EVT: {escolha_busca.upper()}")
+    st.subheader(f"📑 EVT: {atv_final.upper()}")
 
-    # Bloco de Índices
-    c1, c2 = st.columns(2)
-    with c1:
+    col_a, col_b = st.columns(2)
+    with col_a:
         st.info("### 🏗️ 1. ÍNDICES")
         to_calc = (area_c / pavs) / area_t
         st.write(f"**Zona:** {zona}")
-        st.write(f"**Taxa de Ocupação:** {to_calc*100:.1f}% (Limite: 70%)")
+        st.write(f"**Ocupação:** {to_calc*100:.1f}% (Máx: 70%)")
         st.write(f"**Área Permeável (10%):** {area_t * 0.1:.2f}m²")
 
-    with c2:
+    with col_b:
         st.info("### 📏 2. RECUOS")
         st.write("**Frontal:** 3,00 m")
-        st.write("**Divisas Laterais:** 1,50 m (para aberturas)")
-        st.write("**Paredes Cegas:** Isento de recuo lateral.")
+        st.write("**Laterais:** Isento (paredes cegas) / 1,50m (aberturas)")
 
-    # Bloco de Vagas e Sanitários
-    c3, c4 = st.columns(2)
-    with c3:
-        st.info("### 🚽 3. SANITÁRIOS")
-        vasos = math.ceil(area_c / dados_atv['s'])
-        st.write(f"**Vaso/Lavatório:** {max(1, vasos)} conj.")
-        st.caption("Cálculo baseado na área construída e tabelas oficiais.")
+    col_c, col_d = st.columns(2)
+    with col_c:
+        st.info("### 🚽 3. SANITÁRIO")
+        vasos = math.ceil(area_c / dados['s'])
+        st.write(f"**Vasos/Lavatórios:** {max(1, vasos)} conj.")
 
-    with c4:
+    with col_d:
         st.info("### 🚗 4. VAGAS")
-        vagas = math.ceil(area_c / dados_atv['v']) if dados_atv['v'] > 0 else 1
-        st.write(f"**Vagas de Carro:** {vagas}")
-        st.write(f"**Regra:** {dados_atv['desc']}")
-        bicis = max(5, math.ceil(vagas * 0.1))
-        st.write(f"**Bicicletas:** {bicis} vagas (mín. 5 conforme Art. 129)")
+        vagas = math.ceil(area_c / dados['v']) if dados['v'] > 0 else 1
+        st.write(f"**Vagas Carro:** {vagas} vaga(s)")
+        st.write(f"**Bicicletas:** {max(5, math.ceil(vagas*0.1))} vagas")
 
     if to_calc <= 0.7:
         st.success(f"✅ **VIÁVEL:** O projeto atende aos parâmetros da zona {zona}.")
     else:
-        st.error(f"❌ **INVIÁVEL:** TO de {to_calc*100:.1f}% excede o limite.")
+        st.error("❌ **INVIÁVEL:** A taxa de ocupação ultrapassa o limite permitido.")
+else:
+    st.info("👈 Use os campos na lateral e clique no lote no mapa.")
